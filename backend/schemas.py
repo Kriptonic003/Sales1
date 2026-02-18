@@ -69,6 +69,14 @@ class DashboardResponse(BaseModel):
     alerts: List[str]
 
 
+class SentimentScoreOut(BaseModel):
+    sentiment_label: Optional[str] = None
+    sentiment_score: Optional[float] = None
+    
+    class Config:
+        from_attributes = True
+
+
 class SocialPostOut(BaseModel):
     id: int
     platform: str
@@ -81,6 +89,27 @@ class SocialPostOut(BaseModel):
 
     class Config:
         from_attributes = True
+    
+    @classmethod
+    def from_orm(cls, obj):
+        """Map ORM object including sentiment relationship"""
+        sentiment_label = None
+        sentiment_score = None
+        
+        if hasattr(obj, 'sentiment') and obj.sentiment:
+            sentiment_label = obj.sentiment.sentiment_label
+            sentiment_score = obj.sentiment.sentiment_score
+        
+        return cls(
+            id=obj.id,
+            platform=obj.platform,
+            product_name=obj.product_name,
+            brand_name=obj.brand_name,
+            posted_at=obj.posted_at,
+            content=obj.content,
+            sentiment_label=sentiment_label,
+            sentiment_score=sentiment_score,
+        )
 
 
 class ChatRequest(BaseModel):

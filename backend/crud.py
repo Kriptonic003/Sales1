@@ -95,10 +95,9 @@ def get_comments(
 
     query = (
         db.query(models.SocialPost)
-        .join(
+        .outerjoin(
             models.SentimentScore,
             models.SentimentScore.post_id == models.SocialPost.id,
-            isouter=True,
         )
         .filter(
             models.SocialPost.product_name == product_name,
@@ -107,9 +106,12 @@ def get_comments(
         )
     )
 
-    if sentiment_filter:
-        query = query.filter(models.SentimentScore.sentiment_label == sentiment_filter)
+    if sentiment_filter and sentiment_filter.lower() != "all":
+        query = query.filter(models.SentimentScore.sentiment_label == sentiment_filter.lower())
 
+    # Order by most recent first
+    query = query.order_by(models.SocialPost.posted_at.desc())
+    
     return query.all()
 
 

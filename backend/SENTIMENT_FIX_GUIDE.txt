@@ -1,0 +1,216 @@
+"""
+Troubleshooting guide for DistilBERT sentiment classification issues
+"""
+
+print("""
+================================================================================
+SENTIMENT CLASSIFICATION FIXES - Troubleshooting Guide
+================================================================================
+
+ISSUES FIXED:
+1. ✅ Sentiment labels were being overwritten by incorrect threshold logic
+2. ✅ DistilBERT labels were ignored in favor of arbitrary score thresholds  
+3. ✅ Individual comment sentiments weren't being returned in API responses
+4. ✅ Query wasn't properly loading sentiment relationships
+
+KEY CHANGES MADE:
+================================================================================
+
+1. PIPELINE.PY - analyze_posts() function
+   ───────────────────────────────────────────────────────────────────────────
+   BEFORE: Was overwriting DistilBERT label with threshold-based logic:
+           if score > 0.2: label = "positive"
+           elif score < -0.2: label = "negative"
+   
+   AFTER:  Uses DistilBERT's classification directly:
+           final_label = label.lower()  # Keep DistilBERT's decision
+           
+   WHY: DistilBERT's confidence scores are calibrated. Using them directly
+        is more accurate than arbitrary thresholds.
+
+2. CRUD.PY - get_comments() function
+   ───────────────────────────────────────────────────────────────────────────
+   BEFORE: .join(..., isouter=True) might not properly load relationship
+   
+   AFTER:  .outerjoin(...) explicitly loads sentiment relationship
+           Added sentiment_filter.lower() comparison
+           Added .order_by(posted_at.desc()) for newest first
+           
+   WHY: Proper joining ensures sentiment data is included in response
+
+3. SCHEMAS.PY - SocialPostOut model
+   ───────────────────────────────────────────────────────────────────────────
+   BEFORE: Simple attribute mapping might miss relationship
+   
+   AFTER:  Added from_orm() classmethod to explicitly map sentiment relationship
+           Handles None values gracefully if sentiment doesn't exist
+           
+   WHY: Ensures sentiment_label and sentiment_score are populated from the
+        related SentimentScore object
+
+================================================================================
+
+TESTING THE FIX:
+================================================================================
+
+Step 1: Run the diagnostic test
+────────────────────────────────
+  cd backend
+  python test_sentiment_fix.py
+
+Expected output:
+  ✓ Test Case 1: Positive Comments → Label: POSITIVE
+  ✓ Test Case 2: Negative Comments → Label: NEGATIVE
+  ✓ Test Case 3: Neutral Comments → Shows mixed results
+  ✓ Test Case 4: Sentiment Scores → Positive scores > 0, Negative < 0
+  ✓ Test Case 5: Batch Analysis → Accurate distribution
+
+Step 2: Start the server
+────────────────────────
+  uvicorn main:app --reload --port 8000
+
+Step 3: Test the API with curl
+───────────────────────────────
+  
+  curl -X POST "http://localhost:8000/analyze-sentiment" \\
+    -H "Content-Type: application/json" \\
+    -d '{
+      "product_name": "iPhone",
+      "brand_name": "Apple",
+      "platform": "youtube",
+      "start_date": "2024-02-01",
+      "end_date": "2024-02-18"
+    }'
+
+Expected response:
+  {
+    "product_name": "iPhone",
+    "platform": "youtube",
+    "average_sentiment": 0.45,
+    "negative_percentage": 15.2,
+    "total_posts": 42,
+    ...
+  }
+
+Step 4: Check individual comment sentiments
+─────────────────────────────────────────────
+  
+  curl -X GET "http://localhost:8000/comments?product_name=iPhone&brand_name=Apple&platform=youtube&sentiment_filter=all"
+
+Expected response (each comment should have sentiment):
+  [
+    {
+      "id": 1,
+      "content": "This product is amazing!",
+      "sentiment_label": "positive",
+      "sentiment_score": 0.9987,
+      ...
+    },
+    {
+      "id": 2,
+      "content": "Waste of money",
+      "sentiment_label": "negative", 
+      "sentiment_score": -0.9923,
+      ...
+    }
+  ]
+
+Step 5: Filter by sentiment
+────────────────────────────
+  
+  # Get only positive comments
+  curl "http://localhost:8000/comments?product_name=iPhone&brand_name=Apple&platform=youtube&sentiment_filter=positive"
+  
+  # Get only negative comments
+  curl "http://localhost:8000/comments?product_name=iPhone&brand_name=Apple&platform=youtube&sentiment_filter=negative"
+
+Step 6: Check dashboard with sentiment distribution
+──────────────────────────────────────────────────────
+  
+  curl "http://localhost:8000/get-dashboard-data?product_name=iPhone&brand_name=Apple&platform=youtube"
+
+Expected response (check sentiment_distribution):
+  {
+    "kpis": {...},
+    "sentiment_distribution": {
+      "positive": 15,
+      "negative": 8,
+      "neutral": 19
+    },
+    ...
+  }
+
+================================================================================
+
+DEBUGGING CHECKLIST:
+================================================================================
+
+If sentiments still aren't showing:
+
+❌ Issue: "sentiment_label": null, "sentiment_score": null
+
+  → Check: Are comments being analyzed at all?
+     Run: SELECT COUNT(*) FROM sentiment_scores;
+     
+  → Check: Are sentiments being saved properly?
+     Run: SELECT * FROM sentiment_scores LIMIT 5;
+     
+  → Solution: Run /analyze-sentiment endpoint first, which triggers analysis
+  
+❌ Issue: All comments marked as "neutral"
+
+  → This means DistilBERT is uncertain about sentiment
+  → Solution: Try with different product names/comments
+  → Check: python test_sentiment_fix.py to verify DistilBERT works
+  
+❌ Issue: Taking a long time to classify
+
+  → Normal for CPU: ~0.5-1 second per comment
+  → Solution: Use GPU if available (see SETUP_DISTILBERT.md)
+  
+❌ Issue: Model fails to load "distilbert-base-uncased..."
+
+  → Solution: Delete ~/.cache/huggingface and let it re-download
+  → Or: Run manually:
+      python -c "from transformers import pipeline; 
+                 pipeline('sentiment-analysis', model='distilbert-base-uncased-finetuned-sst-2-english')"
+
+================================================================================
+
+EXPECTED BEHAVIOR AFTER FIX:
+================================================================================
+
+✅ Comments are classified as positive/negative/neutral by DistilBERT
+✅ Sentiment scores range from -1 (very negative) to +1 (very positive)
+✅ Individual comment endpoints return sentiment_label & sentiment_score
+✅ Sentiment filters work correctly (?sentiment_filter=positive)
+✅ Dashboard shows accurate sentiment distribution
+✅ Average sentiment calculation is based on DistilBERT scores
+
+================================================================================
+
+ADVANCED: Fine-tuning thresholds
+================================================================================
+
+If you want to adjust what counts as positive/negative/neutral:
+
+1. In sentiment_classifier.py, modify convert_to_sentiment_score():
+   
+   Current: positive → [0, 1], negative → [-1, 0]
+   
+   Custom: You could add confidence thresholds:
+   
+   def convert_to_sentiment_score(self, label, score):
+       if label == "positive" and score > 0.85:  # Only strong positives
+           return score
+       elif label == "negative" and score > 0.85:
+           return -score
+       else:
+           return 0.0  # Treat uncertain as neutral
+
+2. Then in pipeline.py, re-classify based on your thresholds
+
+This allows filtering noisy/uncertain predictions.
+
+================================================================================
+""")

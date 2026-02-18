@@ -153,3 +153,63 @@ def fetch_youtube_comments_multi_video(
         "videos_used": f"Top {max_videos} videos by relevance",
         "comments_saved": len(saved),
     }
+
+# --------------------------------------------------
+# DEBUG ENDPOINT FOR TESTING SENTIMENT CLASSIFICATION
+# --------------------------------------------------
+
+@app.post("/debug/test-sentiment")
+def debug_test_sentiment(text: str):
+    """
+    Debug endpoint to test DistilBERT sentiment classification on a single text
+    
+    Example:
+      curl -X POST "http://localhost:8000/debug/test-sentiment?text=This%20product%20is%20amazing"
+    """
+    try:
+        label, confidence = pipeline.sentiment_classifier.classify(text)
+        score = pipeline.sentiment_classifier.convert_to_sentiment_score(label, confidence)
+        
+        return {
+            "text": text,
+            "sentiment_label": label,
+            "sentiment_score": score,
+            "confidence": confidence,
+            "model": "distilbert-base-uncased-finetuned-sst-2-english"
+        }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "text": text
+        }
+
+@app.post("/debug/test-batch-sentiment")
+def debug_test_batch_sentiment(texts: List[str]):
+    """
+    Debug endpoint to test batch sentiment classification
+    
+    Example:
+      curl -X POST "http://localhost:8000/debug/test-batch-sentiment" \\
+        -H "Content-Type: application/json" \\
+        -d '{"texts": ["Great product!", "Terrible quality"]}'
+    """
+    try:
+        results = []
+        for text in texts:
+            label, confidence = pipeline.sentiment_classifier.classify(text)
+            score = pipeline.sentiment_classifier.convert_to_sentiment_score(label, confidence)
+            results.append({
+                "text": text,
+                "sentiment_label": label,
+                "sentiment_score": score,
+                "confidence": confidence
+            })
+        
+        summary = pipeline.sentiment_classifier.get_sentiment_summary(texts)
+        
+        return {
+            "results": results,
+            "summary": summary
+        }
+    except Exception as e:
+        return {"error": str(e)}

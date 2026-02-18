@@ -45,28 +45,38 @@ class SentimentAndSalesPipeline:
 
         total_score = 0.0
         negative = 0
+        positive = 0
+        neutral = 0
 
         for post in posts:
             score, label, confidence = self._score_text(post.content)
             
-            if score > 0.2:
-                label = "positive"
-            elif score < -0.2:
-                label = "negative"
+            # Use DistilBERT's label directly (it's already well-calibrated)
+            final_label = label.lower()
+            
+            # Track counts
+            if final_label == "positive":
+                positive += 1
+            elif final_label == "negative":
                 negative += 1
             else:
-                label = "neutral"
+                neutral += 1
 
             total_score += score
 
+            # Check if sentiment already exists to avoid duplicates
             if not post.sentiment:
                 db.add(
                     models.SentimentScore(
                         post_id=post.id,
-                        sentiment_label=label,
+                        sentiment_label=final_label,
                         sentiment_score=score,
                     )
                 )
+            else:
+                # Update existing sentiment score
+                post.sentiment.sentiment_label = final_label
+                post.sentiment.sentiment_score = score
 
         db.commit()
 
