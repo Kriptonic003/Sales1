@@ -8,6 +8,7 @@ from sklearn.linear_model import LogisticRegression, LinearRegression
 import models
 import schemas
 import crud
+from ml.sentiment_classifier import DistilBERTSentimentClassifier
 
 
 class SentimentSummary:
@@ -19,18 +20,24 @@ class SentimentSummary:
 
 class SentimentAndSalesPipeline:
     def __init__(self):
+        self.sentiment_classifier = DistilBERTSentimentClassifier()
         self.loss_classifier = LogisticRegression()
         self.sales_regressor = LinearRegression()
         self._trained = False
 
-    def _score_text(self, text: str) -> float:
-        text_lower = text.lower()
-        score = 0.0
-        if any(w in text_lower for w in ["love", "great", "good", "awesome", "amazing"]):
-            score += 0.6
-        if any(w in text_lower for w in ["bad", "terrible", "hate", "bug", "issue", "slow"]):
-            score -= 0.7
-        return max(min(score, 1.0), -1.0)
+    def _score_text(self, text: str) -> tuple:
+        """
+        Score text using DistilBERT.
+        
+        Returns:
+            Tuple of (sentiment_score, sentiment_label, confidence)
+            - sentiment_score: -1 to 1
+            - sentiment_label: 'positive', 'negative', or 'neutral'
+            - confidence: 0 to 1
+        """
+        label, confidence = self.sentiment_classifier.classify(text)
+        sentiment_score = self.sentiment_classifier.convert_to_sentiment_score(label, confidence)
+        return sentiment_score, label, confidence
 
     def analyze_posts(self, db: Session, posts: List[models.SocialPost]) -> SentimentSummary:
         if not posts:
@@ -40,13 +47,15 @@ class SentimentAndSalesPipeline:
         negative = 0
 
         for post in posts:
-            score = self._score_text(post.content)
-            label = "neutral"
+            score, label, confidence = self._score_text(post.content)
+            
             if score > 0.2:
                 label = "positive"
             elif score < -0.2:
                 label = "negative"
                 negative += 1
+            else:
+                label = "neutral"
 
             total_score += score
 
