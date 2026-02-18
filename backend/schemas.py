@@ -80,7 +80,7 @@ class SocialPostOut(BaseModel):
     sentiment_score: Optional[float] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class ChatRequest(BaseModel):

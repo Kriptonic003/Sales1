@@ -1,17 +1,20 @@
-from datetime import date
+from datetime import date, datetime
 from typing import List, Optional
-import random
 
 from sqlalchemy.orm import Session
 
 import models
 import schemas
 
+# Limit real YouTube fetch to this many videos when no posts exist
+YOUTUBE_FALLBACK_MAX_VIDEOS = 3
+
 
 def get_or_create_social_posts(
     db: Session,
     req: schemas.SentimentAnalysisRequest
 ) -> List[models.SocialPost]:
+    print(f"DEBUG: get_or_create_social_posts called for {req.product_name}")
 
     posts = (
         db.query(models.SocialPost)
@@ -28,24 +31,58 @@ def get_or_create_social_posts(
     if posts:
         return posts
 
-    # If no posts in range, generate synthetic YouTube comments
-    days = (req.end_date - req.start_date).days + 1
+    # If no posts in range and platform is YouTube, fetch real comments from limited videos
+    # ✅ RESTORED FALLBACK FETCH (Optimized):
+    # If frontend fetch skipped/failed, we MUST try to fetch something here, otherwise results are empty.
+    # We limit to 1 video to prevent timeouts.
+    if req.platform == "YouTube":
+        from services.youtube_service import fetch_comments_from_top_videos
 
-    for i in range(days * 5):
-        dt = req.start_date + (req.end_date - req.start_date) * random.random()
-
-        post = models.SocialPost(
-            platform=req.platform,
-            product_name=req.product_name,
-            brand_name=req.brand_name,
-            posted_at=date.fromordinal(int(dt.toordinal())),
-            content=f"Synthetic YouTube comment {i} on {req.product_name}",
+        query = f"{req.brand_name} {req.product_name}".strip()
+        # Optimize: Fetch only 1 video in fallback to be fast
+        comments = fetch_comments_from_top_videos(
+            query,
+            max_videos=1, 
         )
+        if comments:
+            save_youtube_comments(
+                db=db,
+                product_name=req.product_name,
+                brand_name=req.brand_name,
+                platform=req.platform,
+                comments=comments,
+            )
+            # Return all posts for this product/brand/platform (the ones we just saved)
+            return (
+                db.query(models.SocialPost)
+                .filter(
+                    models.SocialPost.product_name == req.product_name,
+                    models.SocialPost.brand_name == req.brand_name,
+                    models.SocialPost.platform == req.platform,
+                )
+                .all()
+            )
+    # No posts and either not YouTube or fetch returned nothing
+    return []
 
-        db.add(post)
-
+def delete_social_posts(
+    db: Session,
+    product_name: str,
+    brand_name: str,
+    platform: str,
+) -> int:
+    """Delete all stored posts for a product/brand/platform (used to refresh fetched comments)."""
+    deleted = (
+        db.query(models.SocialPost)
+        .filter(
+            models.SocialPost.product_name == product_name,
+            models.SocialPost.brand_name == brand_name,
+            models.SocialPost.platform == platform,
+        )
+        .delete(synchronize_session=False)
+    )
     db.commit()
-    return get_or_create_social_posts(db, req)
+    return int(deleted or 0)
 
 
 def get_comments(
@@ -153,35 +190,11 @@ def save_youtube_comments(
     db: Session,
     product_name: str,
     brand_name: str,
-    comments: list,
-):
-    saved_posts = []
-
-    for c in comments:
-        post = models.SocialPost(
-            platform="YouTube",
-            product_name=product_name,
-            brand_name=brand_name,
-            content=c["content"],
-            posted_at=c["posted_at"],
-        )
-        db.add(post)
-        saved_posts.append(post)
-
-    db.commit()
-    return saved_posts
-from datetime import datetime
-import models
-
-def save_youtube_comments(
-    db,
-    product_name: str,
-    brand_name: str,
     platform: str,
     comments: list,
-):
+) -> List[models.SocialPost]:
+    """Save YouTube API comments (with 'text' and 'published_at') as SocialPost rows."""
     saved_posts = []
-
     for c in comments:
         post = models.SocialPost(
             product_name=product_name,
@@ -194,41 +207,7 @@ def save_youtube_comments(
         )
         db.add(post)
         saved_posts.append(post)
-
     db.commit()
-
     for post in saved_posts:
         db.refresh(post)
-
     return saved_posts
-from datetime import datetime
-import models
-
-def save_youtube_comments(
-    db,
-    product_name: str,
-    brand_name: str,
-    platform: str,
-    comments: list,
-):
-    posts = []
-
-    for c in comments:
-        post = models.SocialPost(
-            product_name=product_name,
-            brand_name=brand_name,
-            platform=platform,
-            content=c["text"],
-            posted_at=datetime.fromisoformat(
-                c["published_at"].replace("Z", "")
-            ).date(),
-        )
-        db.add(post)
-        posts.append(post)
-
-    db.commit()
-
-    for p in posts:
-        db.refresh(p)
-
-    return posts

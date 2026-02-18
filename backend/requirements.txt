@@ -6,4 +6,5 @@ numpy
 pydantic
 requests
 python-multipart
+python-dotenv
 

@@ -122,12 +122,23 @@ def chat(request: schemas.ChatRequest):
 def fetch_youtube_comments_multi_video(
     product_name: str,
     brand_name: str,
+    max_videos: int = 3,
     db: Session = Depends(get_db),
 ):
-    comments = fetch_comments_from_top_videos(product_name)
+    # Build a more specific query to avoid unrelated mega-viral results
+    query = f"{brand_name} {product_name}".strip()
+    comments = fetch_comments_from_top_videos(query, max_videos=max_videos)
 
     if not comments:
         raise HTTPException(status_code=404, detail="No comments found")
+
+    # Refresh stored comments so visualizations match the latest fetch
+    crud.delete_social_posts(
+        db=db,
+        product_name=product_name,
+        brand_name=brand_name,
+        platform="YouTube",
+    )
 
     saved = crud.save_youtube_comments(
         db=db,
@@ -139,6 +150,6 @@ def fetch_youtube_comments_multi_video(
 
     return {
         "message": "YouTube comments fetched from multiple top videos",
-        "videos_used": "Top viewed videos",
+        "videos_used": f"Top {max_videos} videos by relevance",
         "comments_saved": len(saved),
     }

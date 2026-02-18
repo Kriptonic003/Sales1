@@ -16,12 +16,13 @@ def search_top_videos(query: str, max_videos: int = 3):
             "part": "snippet",
             "q": query,
             "type": "video",
-            "order": "viewCount",
+            # "viewCount" tends to return unrelated mega-viral videos for broad queries.
+            "order": "relevance",
             "maxResults": max_videos,
             "key": YOUTUBE_API_KEY,
         }
 
-        resp = requests.get(SEARCH_URL, params=params)
+        resp = requests.get(SEARCH_URL, params=params, timeout=10)
 
         if resp.status_code != 200:
             print("YouTube SEARCH API Error:", resp.text)
@@ -48,7 +49,7 @@ def fetch_comments_for_video(video_id: str, max_comments: int = 20):
             "key": YOUTUBE_API_KEY,
         }
 
-        resp = requests.get(COMMENTS_URL, params=params)
+        resp = requests.get(COMMENTS_URL, params=params, timeout=10)
 
         if resp.status_code != 200:
             print("YouTube COMMENTS API Error:", resp.text)

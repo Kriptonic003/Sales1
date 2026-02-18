@@ -35,13 +35,19 @@ export default function AnalyzePage() {
     setError("");
 
     try {
-      // 🔹 STEP 1: Fetch YouTube comments from MULTIPLE top videos
-      await api.post("/fetch-youtube-comments", null, {
-        params: {
-          product_name: product,
-          brand_name: brand,
-        },
-      });
+      // 🔹 STEP 1: Try to fetch YouTube comments (optional - skip if it fails/times out)
+      try {
+        await api.post("/fetch-youtube-comments", null, {
+          params: {
+            product_name: product,
+            brand_name: brand,
+          },
+          timeout: 60000, // INCREASED to 60s to ensure fetch completes
+        });
+      } catch (fetchError) {
+        console.warn("YouTube fetch failed or timed out, using existing data:", fetchError);
+        // Continue anyway - we'll use existing database data
+      }
 
       // 🔹 STEP 2: Analyze sentiment (YouTube only)
       const sentimentResp = await api.post<SentimentAnalysisResponse>(
@@ -50,8 +56,8 @@ export default function AnalyzePage() {
           product_name: product,
           brand_name: brand,
           platform: "YouTube",
-          start_date: "2024-01-01",
-          end_date: "2024-12-31",
+          start_date: "2023-01-01",
+          end_date: "2027-12-31",
         }
       );
       setSentiment(sentimentResp.data);
@@ -62,8 +68,8 @@ export default function AnalyzePage() {
           product_name: product,
           brand_name: brand,
           platform: "YouTube",
-          start_date: "2024-01-01",
-          end_date: "2024-12-31",
+          start_date: "2023-01-01",
+          end_date: "2027-12-31",
         });
       setPrediction(predictionResp.data);
     } catch (err) {
@@ -111,9 +117,9 @@ export default function AnalyzePage() {
         <button
           onClick={submit}
           disabled={loading}
-          className="mt-5 btn-primary rounded-xl px-5 py-3"
+          className="btn-primary w-full py-4 text-lg font-bold rounded-xl shadow-lg shadow-cyan-500/20"
         >
-          {loading ? "Analyzing..." : "Run Analysis"}
+          {loading ? "Fetching & Analyzing..." : "Run Analysis"}
         </button>
 
         {error && <div className="mt-3 text-sm text-red-400">{error}</div>}

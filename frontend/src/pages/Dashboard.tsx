@@ -34,8 +34,8 @@ export default function DashboardPage() {
     try {
       const res = await api.get<DashboardResponse>("/get-dashboard-data", {
         params: {
-          product_name: "NeoGadget",
-          brand_name: "BlueNova",
+          product_name: localStorage.getItem("product_name") || "NeoGadget",
+          brand_name: localStorage.getItem("brand_name") || "BlueNova",
           platform: "YouTube", // 🔒 Locked to YouTube
         },
       });

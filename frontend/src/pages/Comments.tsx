@@ -16,8 +16,8 @@ export default function CommentsPage() {
     try {
       const { data } = await api.get<SocialPostOut[]>("/comments", {
         params: {
-          product_name: "NeoGadget",
-          brand_name: "BlueNova",
+          product_name: localStorage.getItem("product_name") || "NeoGadget",
+          brand_name: localStorage.getItem("brand_name") || "BlueNova",
           platform: "YouTube", // 🔒 Force YouTube
           sentiment_filter: filter || undefined,
         },
@@ -50,11 +50,10 @@ export default function CommentsPage() {
             <button
               key={f || "all"}
               onClick={() => setFilter(f as any)}
-              className={`rounded-full px-3 py-2 text-xs uppercase tracking-wide ${
-                filter === f
+              className={`rounded-full px-3 py-2 text-xs uppercase tracking-wide ${filter === f
                   ? "bg-cyan-500/20 text-cyan-100"
                   : "border border-cyan-500/30 text-slate-200"
-              }`}
+                }`}
             >
               {f === "" ? "All" : f}
             </button>
