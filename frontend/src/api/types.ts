@@ -1,4 +1,4 @@
-export type Platform = "Twitter" | "Reddit";
+export type Platform = 'Twitter' | 'Reddit';
 
 export interface SentimentAnalysisResponse {
   product_name: string;
@@ -23,6 +23,11 @@ export interface SalesLossPredictionResponse {
 export interface KPISection {
   average_sentiment: number;
   negative_percentage: number;
+  positive_percentage?: number;
+  neutral_percentage?: number;
+  positive_count?: number;
+  negative_count?: number;
+  neutral_count?: number;
   predicted_sales_drop: number;
   risk_level: string;
 }
@@ -63,4 +68,3 @@ export interface SocialPostOut {
 export interface ChatResponse {
   reply: string;
 }
-

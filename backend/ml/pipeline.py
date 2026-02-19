@@ -12,10 +12,17 @@ from ml.sentiment_classifier import DistilBERTSentimentClassifier
 
 
 class SentimentSummary:
-    def __init__(self, average_sentiment: float, negative_percentage: float, total_posts: int):
+    def __init__(self, average_sentiment: float, negative_percentage: float, total_posts: int, 
+                 positive_count: int = 0, negative_count: int = 0, neutral_count: int = 0):
         self.average_sentiment = average_sentiment
         self.negative_percentage = negative_percentage
         self.total_posts = total_posts
+        self.positive_count = positive_count
+        self.negative_count = negative_count
+        self.neutral_count = neutral_count
+        # Calculate percentages
+        self.positive_percentage = (positive_count / total_posts * 100) if total_posts > 0 else 0.0
+        self.neutral_percentage = (neutral_count / total_posts * 100) if total_posts > 0 else 0.0
 
 
 class SentimentAndSalesPipeline:
@@ -84,6 +91,9 @@ class SentimentAndSalesPipeline:
             average_sentiment=total_score / len(posts),
             negative_percentage=(negative / len(posts)) * 100.0,
             total_posts=len(posts),
+            positive_count=positive,
+            negative_count=negative,
+            neutral_count=neutral,
         )
 
     def _train_models(self, revenues: List[float], avg_sentiments: List[float]):
@@ -165,6 +175,11 @@ class SentimentAndSalesPipeline:
                 kpis=schemas.KPISection(
                     average_sentiment=0.0,
                     negative_percentage=0.0,
+                    positive_percentage=0.0,
+                    neutral_percentage=0.0,
+                    positive_count=0,
+                    negative_count=0,
+                    neutral_count=0,
                     predicted_sales_drop=0.0,
                     risk_level="Low",
                 ),
@@ -233,12 +248,32 @@ class SentimentAndSalesPipeline:
             for r in sales_rows
         ]
 
+        # Fetch latest prediction for this product/brand
+        from sqlalchemy import desc
+        latest_pred = (
+            db.query(models.Prediction)
+            .filter(
+                models.Prediction.product_name == product_name,
+                models.Prediction.brand_name == brand_name,
+            )
+            .order_by(desc(models.Prediction.date))
+            .first()
+        )
+
+        predicted_sales_drop = latest_pred.predicted_drop_percentage if latest_pred else 0.0
+        risk_level = latest_pred.risk_level if latest_pred else "Low"
+
         return schemas.DashboardResponse(
             kpis=schemas.KPISection(
                 average_sentiment=summary.average_sentiment,
                 negative_percentage=summary.negative_percentage,
-                predicted_sales_drop=0.0,
-                risk_level="Low",
+                positive_percentage=summary.positive_percentage,
+                neutral_percentage=summary.neutral_percentage,
+                positive_count=summary.positive_count,
+                negative_count=summary.negative_count,
+                neutral_count=summary.neutral_count,
+                predicted_sales_drop=predicted_sales_drop,
+                risk_level=risk_level,
             ),
             sentiment_trend=sentiment_trend,
             sentiment_distribution=sentiment_distribution,

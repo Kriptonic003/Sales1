@@ -55,6 +55,11 @@ class SalesPoint(BaseModel):
 class KPISection(BaseModel):
     average_sentiment: float
     negative_percentage: float
+    positive_percentage: float
+    neutral_percentage: float
+    negative_count: int
+    positive_count: int
+    neutral_count: int
     predicted_sales_drop: float
     risk_level: str
 

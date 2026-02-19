@@ -1,24 +1,26 @@
-import { useEffect, useState } from "react";
-import { api, formatError } from "../api/client";
-import type { SocialPostOut } from "../api/types";
-import LoadingSkeleton from "../components/LoadingSkeleton";
-import AlertBanner from "../components/AlertBanner";
+import { useEffect, useState } from 'react';
+import { api, formatError } from '../api/client';
+import type { SocialPostOut } from '../api/types';
+import DynamicLoader from '../components/DynamicLoader';
+import AlertBanner from '../components/AlertBanner';
 
 export default function CommentsPage() {
   const [data, setData] = useState<SocialPostOut[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [filter, setFilter] = useState<"" | "positive" | "neutral" | "negative">("");
+  const [error, setError] = useState('');
+  const [filter, setFilter] = useState<
+    '' | 'positive' | 'neutral' | 'negative'
+  >('');
 
   const fetchData = async () => {
     setLoading(true);
-    setError("");
+    setError('');
     try {
-      const { data } = await api.get<SocialPostOut[]>("/comments", {
+      const { data } = await api.get<SocialPostOut[]>('/comments', {
         params: {
-          product_name: localStorage.getItem("product_name") || "NeoGadget",
-          brand_name: localStorage.getItem("brand_name") || "BlueNova",
-          platform: "YouTube", // 🔒 Force YouTube
+          product_name: localStorage.getItem('product_name') || 'NeoGadget',
+          brand_name: localStorage.getItem('brand_name') || 'BlueNova',
+          platform: 'YouTube', // 🔒 Force YouTube
           sentiment_filter: filter || undefined,
         },
       });
@@ -40,29 +42,38 @@ export default function CommentsPage() {
       {/* HEADER */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-sm uppercase tracking-[0.2em] text-cyan-200/80">Comments</p>
-          <h2 className="text-2xl font-semibold text-white">YouTube Comments Feed</h2>
+          <p className="text-sm uppercase tracking-[0.2em] text-cyan-200/80">
+            Comments
+          </p>
+          <h2 className="text-2xl font-semibold text-white">
+            YouTube Comments Feed
+          </h2>
         </div>
 
         {/* SENTIMENT FILTERS */}
         <div className="flex items-center gap-2">
-          {["", "positive", "neutral", "negative"].map((f) => (
+          {['', 'positive', 'neutral', 'negative'].map(f => (
             <button
-              key={f || "all"}
+              key={f || 'all'}
               onClick={() => setFilter(f as any)}
-              className={`rounded-full px-3 py-2 text-xs uppercase tracking-wide ${filter === f
-                  ? "bg-cyan-500/20 text-cyan-100"
-                  : "border border-cyan-500/30 text-slate-200"
-                }`}
+              className={`rounded-full px-3 py-2 text-xs uppercase tracking-wide ${
+                filter === f
+                  ? 'bg-cyan-500/20 text-cyan-100'
+                  : 'border border-cyan-500/30 text-slate-200'
+              }`}
             >
-              {f === "" ? "All" : f}
+              {f === '' ? 'All' : f}
             </button>
           ))}
         </div>
       </div>
 
       {/* STATES */}
-      {loading && <LoadingSkeleton lines={6} />}
+      {loading && (
+        <div className="mt-8">
+          <DynamicLoader message="Fetching comments..." />
+        </div>
+      )}
       {error && <AlertBanner message={error} tone="error" />}
 
       {/* NO COMMENTS STATE */}
@@ -81,16 +92,22 @@ export default function CommentsPage() {
                 <th className="px-3 py-2">Date</th>
                 <th className="px-3 py-2">Platform</th>
                 <th className="px-3 py-2">Sentiment</th>
+                <th className="px-3 py-2">Score</th>
                 <th className="px-3 py-2">Content</th>
               </tr>
             </thead>
             <tbody>
-              {data.map((p) => (
+              {data.map(p => (
                 <tr key={p.id} className="border-b border-slate-800/70">
                   <td className="px-3 py-2 text-slate-300">{p.posted_at}</td>
                   <td className="px-3 py-2">{p.platform}</td>
                   <td className="px-3 py-2 capitalize text-cyan-200">
-                    {p.sentiment_label || "pending"}
+                    {p.sentiment_label || 'pending'}
+                  </td>
+                  <td className="px-3 py-2 text-cyan-300">
+                    {typeof p.sentiment_score === 'number'
+                      ? p.sentiment_score.toFixed(3)
+                      : '—'}
                   </td>
                   <td className="px-3 py-2 text-slate-200">{p.content}</td>
                 </tr>

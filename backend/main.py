@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
+from datetime import datetime, timedelta
 import os
 
 from dotenv import load_dotenv
@@ -106,6 +107,24 @@ def get_comments(
     sentiment_filter: str | None = None,
     db: Session = Depends(get_db),
 ):
+    # First, get or create comments (fetch from YouTube if needed)
+    from datetime import date
+    posts = crud.get_or_create_social_posts(
+        db,
+        schemas.SentimentAnalysisRequest(
+            product_name=product_name,
+            brand_name=brand_name,
+            platform=platform,
+            start_date=date.today() - timedelta(days=365),
+            end_date=date.today(),
+        ),
+    )
+    
+    # Then analyze sentiment for all posts
+    if posts:
+        pipeline.analyze_posts(db, posts)
+    
+    # Finally return the comments with sentiment loaded
     return crud.get_comments(db, product_name, brand_name, platform, sentiment_filter)
 
 

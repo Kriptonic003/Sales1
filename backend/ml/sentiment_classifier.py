@@ -67,8 +67,15 @@ class DistilBERTSentimentClassifier:
         if not text or not text.strip():
             return "neutral", 0.0
         
-        # Truncate if too long (DistilBERT max is 512 tokens)
-        text = text[:512]
+        # Truncate if too long - use tokenizer to ensure we stay within 512 tokens
+        # The tokenizer adds special tokens, so we limit input text conservatively
+        try:
+            tokenizer = self.classifier.tokenizer
+            tokens = tokenizer.encode(text, max_length=510, truncation=True)
+            text = tokenizer.decode(tokens, skip_special_tokens=True)
+        except:
+            # Fallback: simple character truncation
+            text = text[:500]
         
         try:
             result = self.classifier(text)[0]

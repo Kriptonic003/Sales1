@@ -1,43 +1,44 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { api, formatError } from "../api/client";
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { api, formatError } from '../api/client';
 import type {
   SalesLossPredictionResponse,
   SentimentAnalysisResponse,
-} from "../api/types";
-import LoadingSkeleton from "../components/LoadingSkeleton";
+} from '../api/types';
+import DynamicLoader from '../components/DynamicLoader';
 
 export default function AnalyzePage() {
   const navigate = useNavigate();
 
   // 🔒 Persist inputs across navigation
   const [product, setProduct] = useState(
-    localStorage.getItem("product_name") || "NeoGadget"
+    localStorage.getItem('product_name') || 'S23'
   );
   const [brand, setBrand] = useState(
-    localStorage.getItem("brand_name") || "BlueNova"
+    localStorage.getItem('brand_name') || 'Samsung'
   );
 
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [sentiment, setSentiment] =
-    useState<SentimentAnalysisResponse | null>(null);
+  const [error, setError] = useState('');
+  const [sentiment, setSentiment] = useState<SentimentAnalysisResponse | null>(
+    null
+  );
   const [prediction, setPrediction] =
     useState<SalesLossPredictionResponse | null>(null);
 
   const submit = async () => {
     if (!product) {
-      setError("Please enter a product name");
+      setError('Please enter a product name');
       return;
     }
 
     setLoading(true);
-    setError("");
+    setError('');
 
     try {
       // 🔹 STEP 1: Try to fetch YouTube comments (optional - skip if it fails/times out)
       try {
-        await api.post("/fetch-youtube-comments", null, {
+        await api.post('/fetch-youtube-comments', null, {
           params: {
             product_name: product,
             brand_name: brand,
@@ -45,32 +46,37 @@ export default function AnalyzePage() {
           timeout: 60000, // INCREASED to 60s to ensure fetch completes
         });
       } catch (fetchError) {
-        console.warn("YouTube fetch failed or timed out, using existing data:", fetchError);
+        console.warn(
+          'YouTube fetch failed or timed out, using existing data:',
+          fetchError
+        );
         // Continue anyway - we'll use existing database data
       }
 
       // 🔹 STEP 2: Analyze sentiment (YouTube only)
       const sentimentResp = await api.post<SentimentAnalysisResponse>(
-        "/analyze-sentiment",
+        '/analyze-sentiment',
         {
           product_name: product,
           brand_name: brand,
-          platform: "YouTube",
-          start_date: "2023-01-01",
-          end_date: "2027-12-31",
+          platform: 'YouTube',
+          start_date: '2023-01-01',
+          end_date: '2027-12-31',
         }
       );
       setSentiment(sentimentResp.data);
 
       // 🔹 STEP 3: Predict sales loss
-      const predictionResp =
-        await api.post<SalesLossPredictionResponse>("/predict-sales-loss", {
+      const predictionResp = await api.post<SalesLossPredictionResponse>(
+        '/predict-sales-loss',
+        {
           product_name: product,
           brand_name: brand,
-          platform: "YouTube",
-          start_date: "2023-01-01",
-          end_date: "2027-12-31",
-        });
+          platform: 'YouTube',
+          start_date: '2023-01-01',
+          end_date: '2027-12-31',
+        }
+      );
       setPrediction(predictionResp.data);
     } catch (err) {
       setError(formatError(err));
@@ -90,9 +96,9 @@ export default function AnalyzePage() {
         <div className="grid gap-3">
           <input
             value={product}
-            onChange={(e) => {
+            onChange={e => {
               setProduct(e.target.value);
-              localStorage.setItem("product_name", e.target.value);
+              localStorage.setItem('product_name', e.target.value);
             }}
             placeholder="Product name (used as YouTube search)"
             className="rounded-xl border border-cyan-500/30 bg-slate-950 px-3 py-2 text-white"
@@ -100,9 +106,9 @@ export default function AnalyzePage() {
 
           <input
             value={brand}
-            onChange={(e) => {
+            onChange={e => {
               setBrand(e.target.value);
-              localStorage.setItem("brand_name", e.target.value);
+              localStorage.setItem('brand_name', e.target.value);
             }}
             placeholder="Brand name"
             className="rounded-xl border border-cyan-500/30 bg-slate-950 px-3 py-2 text-white"
@@ -119,7 +125,7 @@ export default function AnalyzePage() {
           disabled={loading}
           className="btn-primary w-full py-4 text-lg font-bold rounded-xl shadow-lg shadow-cyan-500/20"
         >
-          {loading ? "Fetching & Analyzing..." : "Run Analysis"}
+          {loading ? 'Fetching & Analyzing...' : 'Run Analysis'}
         </button>
 
         {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
@@ -129,7 +135,11 @@ export default function AnalyzePage() {
       <div className="glass neon-border rounded-2xl p-5">
         <h3 className="text-lg font-semibold text-white">Results</h3>
 
-        {loading && <LoadingSkeleton lines={5} />}
+        {loading && (
+          <div className="mt-8">
+            <DynamicLoader message="Analyzing sentiment..." size="md" />
+          </div>
+        )}
 
         {!loading && sentiment && prediction && (
           <div className="mt-4 space-y-3">
@@ -154,7 +164,7 @@ export default function AnalyzePage() {
             </div>
 
             <button
-              onClick={() => navigate("/dashboard")}
+              onClick={() => navigate('/dashboard')}
               className="btn-ghost w-full rounded-xl py-3"
             >
               View Dashboard
