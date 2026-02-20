@@ -1,18 +1,19 @@
-import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
-import { useEffect } from "react";
-import Layout from "./components/Layout";
-import LandingPage from "./pages/Landing";
-import AnalyzePage from "./pages/Analyze";
-import DashboardPage from "./pages/Dashboard";
-import CommentsPage from "./pages/Comments";
-import ModelExplainPage from "./pages/ModelExplain";
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import Layout from './components/Layout';
+import LandingPage from './pages/Landing';
+import AnalyzePage from './pages/Analyze';
+import DashboardPage from './pages/Dashboard';
+import CommentsPage from './pages/Comments';
+import ModelExplainPage from './pages/ModelExplain';
+import SalesLossReportPage from './pages/SalesLossReport';
 
 function App() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (window.location.pathname === "/") {
-      navigate("/landing", { replace: true });
+    if (window.location.pathname === '/') {
+      navigate('/landing', { replace: true });
     }
   }, [navigate]);
 
@@ -24,6 +25,7 @@ function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/comments" element={<CommentsPage />} />
         <Route path="/model" element={<ModelExplainPage />} />
+        <Route path="/report" element={<SalesLossReportPage />} />
         <Route path="*" element={<Navigate to="/landing" replace />} />
       </Routes>
     </Layout>
@@ -31,4 +33,3 @@ function App() {
 }
 
 export default App;
-

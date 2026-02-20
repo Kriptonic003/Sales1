@@ -7,7 +7,7 @@ import models
 import schemas
 
 # Limit real YouTube fetch to this many videos when no posts exist
-YOUTUBE_FALLBACK_MAX_VIDEOS = 3
+YOUTUBE_FALLBACK_MAX_VIDEOS = 20
 
 
 def get_or_create_social_posts(

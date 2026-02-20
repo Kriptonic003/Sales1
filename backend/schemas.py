@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Optional, List
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class SentimentAnalysisRequest(BaseModel):
@@ -92,8 +92,7 @@ class SocialPostOut(BaseModel):
     sentiment_label: Optional[str] = None
     sentiment_score: Optional[float] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
     
     @classmethod
     def from_orm(cls, obj):

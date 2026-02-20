@@ -31,6 +31,9 @@ export default function DashboardPage() {
   const fetchData = async () => {
     setLoading(true);
     setError('');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
     try {
       const res = await api.get<DashboardResponse>('/get-dashboard-data', {
         params: {
@@ -38,11 +41,19 @@ export default function DashboardPage() {
           brand_name: localStorage.getItem('brand_name') || 'Samsung',
           platform: 'YouTube', // 🔒 Locked to YouTube
         },
+        signal: controller.signal,
       });
       setData(res.data);
     } catch (err) {
-      setError(formatError(err));
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError(
+          'Request timeout - dashboard is taking too long to load. Please refresh the page.'
+        );
+      } else {
+        setError(formatError(err));
+      }
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };

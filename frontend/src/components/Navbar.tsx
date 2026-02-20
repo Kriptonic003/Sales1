@@ -1,12 +1,13 @@
-import { Link, useLocation } from "react-router-dom";
-import Toggle from "./Toggle";
+import { Link, useLocation } from 'react-router-dom';
+import Toggle from './Toggle';
 
 const links = [
-  { to: "/landing", label: "Home" },
-  { to: "/analyze", label: "Analyze" },
-  { to: "/dashboard", label: "Dashboard" },
-  { to: "/comments", label: "Comments" },
-  { to: "/model", label: "Model" },
+  { to: '/landing', label: 'Home' },
+  { to: '/analyze', label: 'Analyze' },
+  { to: '/dashboard', label: 'Dashboard' },
+  { to: '/report', label: 'Report' },
+  { to: '/comments', label: 'Comments' },
+  { to: '/model', label: 'Model' },
 ];
 
 export default function Navbar() {
@@ -17,16 +18,22 @@ export default function Navbar() {
       <div className="flex items-center gap-3">
         <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-sky-400 to-cyan-300 shadow-lg shadow-cyan-500/30" />
         <div>
-          <div className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">AI Sentinel</div>
-          <div className="text-lg font-semibold text-white">Sales Loss Radar</div>
+          <div className="text-sm uppercase tracking-[0.3em] text-cyan-200/80">
+            AI Sentinel
+          </div>
+          <div className="text-lg font-semibold text-white">
+            Sales Loss Radar
+          </div>
         </div>
       </div>
       <nav className="hidden items-center gap-4 text-sm font-medium text-slate-200 md:flex">
-        {links.map((link) => (
+        {links.map(link => (
           <Link
             key={link.to}
             className={`rounded-full px-3 py-2 transition ${
-              pathname === link.to ? "bg-cyan-500/15 text-cyan-200" : "text-slate-300 hover:text-white"
+              pathname === link.to
+                ? 'bg-cyan-500/15 text-cyan-200'
+                : 'text-slate-300 hover:text-white'
             }`}
             to={link.to}
           >
@@ -46,4 +53,3 @@ export default function Navbar() {
     </header>
   );
 }
-

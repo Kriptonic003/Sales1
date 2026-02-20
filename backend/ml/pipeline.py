@@ -96,7 +96,52 @@ class SentimentAndSalesPipeline:
             neutral_count=neutral,
         )
 
+    def _calculate_sales_loss(self, 
+                           negative_percentage: float, 
+                           comment_volume: int,
+                           revenues: List[float]) -> tuple:
+        """
+        Calculate predicted sales loss based on negative sentiment and comment volume.
+        
+        Formula:
+        - Baseline: negative_percentage drives the loss
+        - Amplification: higher comment volume = more reliable signal
+        - Cap: maximum realistic loss is 40%
+        
+        Returns:
+            Tuple of (predicted_revenue, drop_percentage, loss_probability, risk_level)
+        """
+        # Base loss calculation: negative % ranges from 0-100 → loss ranges from 0-40%
+        # Using quadratic function to give more weight to extreme negativity
+        base_loss = (negative_percentage / 100.0) ** 1.5 * 40.0
+        
+        # Volume adjustment: more comments = higher confidence
+        # Minimum volume to trust prediction: 20 comments
+        volume_confidence = min(1.0, max(0.3, comment_volume / 50.0))
+        
+        # Apply volume confidence to loss
+        adjusted_loss = base_loss * volume_confidence
+        
+        # Calculate loss probability with sigmoid-like curve
+        # Centered at 15% negative sentiment = 50% loss probability
+        loss_prob = 1.0 / (1.0 + np.exp(-(negative_percentage - 15.0) / 5.0))
+        
+        # Calculate predicted revenue
+        recent_rev = revenues[-1] if revenues else 10000.0
+        predicted_revenue = recent_rev * (1.0 - adjusted_loss / 100.0)
+        
+        # Determine risk level
+        if loss_prob < 0.25:
+            risk = "Low"
+        elif loss_prob < 0.60:
+            risk = "Medium"
+        else:
+            risk = "High"
+        
+        return predicted_revenue, adjusted_loss, loss_prob, risk
+
     def _train_models(self, revenues: List[float], avg_sentiments: List[float]):
+        """Legacy method - kept for compatibility but not actively used."""
         X = np.array([[s] for s in avg_sentiments])
         y_loss = np.array([1 if s < 0 else 0 for s in avg_sentiments])
         y_sales = np.array(revenues)
@@ -120,7 +165,33 @@ class SentimentAndSalesPipeline:
             ),
         )
 
-        summary = self.analyze_posts(db, posts)
+        # Only analyze posts that DON'T have sentiment yet
+        posts_without_sentiment = [p for p in posts if not p.sentiment]
+        if posts_without_sentiment:
+            summary = self.analyze_posts(db, posts_without_sentiment)
+        else:
+            # Calculate summary from existing sentiments
+            total_score = 0.0
+            negative = positive = neutral = 0
+            for p in posts:
+                if p.sentiment:
+                    total_score += p.sentiment.sentiment_score
+                    label = p.sentiment.sentiment_label.lower()
+                    if label == "negative":
+                        negative += 1
+                    elif label == "positive":
+                        positive += 1
+                    else:
+                        neutral += 1
+            from ml.pipeline import SentimentSummary
+            summary = SentimentSummary(
+                average_sentiment=total_score / len(posts) if posts else 0.0,
+                negative_percentage=(negative / len(posts) * 100.0) if posts else 0.0,
+                total_posts=len(posts),
+                positive_count=positive,
+                negative_count=negative,
+                neutral_count=neutral,
+            )
 
         sales_rows = crud.get_sales_range(
             db,
@@ -131,18 +202,13 @@ class SentimentAndSalesPipeline:
         )
 
         revenues = [r.revenue for r in sales_rows] if sales_rows else [10000.0] * 30
-        avg_sentiments = [summary.average_sentiment for _ in revenues]
-
-        self._train_models(revenues, avg_sentiments)
-
-        X_today = np.array([[summary.average_sentiment]])
-        loss_prob = float(self.loss_classifier.predict_proba(X_today)[0][1])
-        predicted_revenue = float(self.sales_regressor.predict(X_today)[0])
-        recent_rev = revenues[-1]
-
-        drop_pct = max(0.0, (recent_rev - predicted_revenue) / recent_rev * 100.0)
-
-        risk = "Low" if loss_prob < 0.33 else "Medium" if loss_prob < 0.66 else "High"
+        
+        # Use new model based on negative sentiment percentage
+        predicted_revenue, drop_pct, loss_prob, risk = self._calculate_sales_loss(
+            negative_percentage=summary.negative_percentage,
+            comment_volume=summary.total_posts,
+            revenues=revenues
+        )
 
         crud.upsert_prediction(
             db,
@@ -152,7 +218,7 @@ class SentimentAndSalesPipeline:
             loss_prob,
             drop_pct,
             risk,
-            "Auto-generated prediction",
+            f"Prediction based on {summary.negative_percentage:.1f}% negative sentiment ({summary.negative_count} negative out of {summary.total_posts} comments)",
         )
 
         return schemas.SalesLossPredictionResponse(
@@ -160,9 +226,9 @@ class SentimentAndSalesPipeline:
             brand_name=req.brand_name,
             predicted_drop_percentage=drop_pct,
             loss_probability=loss_prob,
-            confidence=1.0,
+            confidence=min(1.0, max(0.3, summary.total_posts / 50.0)),  # Higher comments = higher confidence
             risk_level=risk,
-            explanation="Prediction based on sentiment trends.",
+            explanation=f"{summary.negative_percentage:.1f}% of comments are negative, indicating {'high' if risk == 'High' else 'moderate' if risk == 'Medium' else 'low'} sales risk.",
         )
 
     # ✅ DASHBOARD (NO AUTO DATA CREATION)
@@ -198,7 +264,41 @@ class SentimentAndSalesPipeline:
         today = date.today()
         start = today - timedelta(days=30)
 
-        summary = self.analyze_posts(db, posts)
+        # Only analyze posts that DON'T have sentiment yet
+        import time
+        analyze_start = time.time()
+        posts_without_sentiment = [p for p in posts if not p.sentiment]
+        posts_with_sentiment = len(posts) - len(posts_without_sentiment)
+        
+        if posts_without_sentiment:
+            print(f"[DASHBOARD] Analyzing {len(posts_without_sentiment)} new posts (already have sentiment for {posts_with_sentiment})")
+            summary = self.analyze_posts(db, posts_without_sentiment)
+        else:
+            print(f"[DASHBOARD] All {len(posts)} posts already analyzed")
+            # Calculate summary from existing sentiments
+            total_score = 0.0
+            positive = negative = neutral = 0
+            for p in posts:
+                if p.sentiment:
+                    total_score += p.sentiment.sentiment_score
+                    label = p.sentiment.sentiment_label.lower()
+                    if label == "positive":
+                        positive += 1
+                    elif label == "negative":
+                        negative += 1
+                    else:
+                        neutral += 1
+            summary = SentimentSummary(
+                average_sentiment=total_score / len(posts) if posts else 0.0,
+                negative_percentage=(negative / len(posts) * 100.0) if posts else 0.0,
+                total_posts=len(posts),
+                positive_count=positive,
+                negative_count=negative,
+                neutral_count=neutral,
+            )
+        
+        analyze_time = time.time() - analyze_start
+        print(f"[DASHBOARD] Sentiment analysis: {analyze_time:.2f}s")
 
         sales_rows = crud.get_sales_range(db, product_name, brand_name, start, today)
         revenues = [r.revenue for r in sales_rows] if sales_rows else [10000.0] * len(posts)

@@ -15,6 +15,9 @@ export default function CommentsPage() {
   const fetchData = async () => {
     setLoading(true);
     setError('');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
     try {
       const { data } = await api.get<SocialPostOut[]>('/comments', {
         params: {
@@ -23,11 +26,19 @@ export default function CommentsPage() {
           platform: 'YouTube', // 🔒 Force YouTube
           sentiment_filter: filter || undefined,
         },
+        signal: controller.signal,
       });
       setData(data);
     } catch (err) {
-      setError(formatError(err));
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError(
+          'Request timeout - comments are taking too long to load. Please try refreshing the page.'
+        );
+      } else {
+        setError(formatError(err));
+      }
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };
@@ -91,25 +102,78 @@ export default function CommentsPage() {
               <tr>
                 <th className="px-3 py-2">Date</th>
                 <th className="px-3 py-2">Platform</th>
-                <th className="px-3 py-2">Sentiment</th>
-                <th className="px-3 py-2">Score</th>
-                <th className="px-3 py-2">Content</th>
+                <th className="px-3 py-2 w-40">Sentiment Label</th>
+                <th className="px-3 py-2 w-48">Sentiment Score</th>
+                <th className="px-3 py-2">Comment</th>
               </tr>
             </thead>
             <tbody>
               {data.map(p => (
-                <tr key={p.id} className="border-b border-slate-800/70">
-                  <td className="px-3 py-2 text-slate-300">{p.posted_at}</td>
-                  <td className="px-3 py-2">{p.platform}</td>
-                  <td className="px-3 py-2 capitalize text-cyan-200">
-                    {p.sentiment_label || 'pending'}
+                <tr
+                  key={p.id}
+                  className="border-b border-slate-800/70 hover:bg-slate-800/30"
+                >
+                  <td className="px-3 py-2 text-slate-400 text-xs">
+                    {p.posted_at}
                   </td>
-                  <td className="px-3 py-2 text-cyan-300">
-                    {typeof p.sentiment_score === 'number'
-                      ? p.sentiment_score.toFixed(3)
-                      : '—'}
+                  <td className="px-3 py-2 text-slate-300">{p.platform}</td>
+                  <td className="px-3 py-2">
+                    <span
+                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                        p.sentiment_label === 'positive'
+                          ? 'bg-green-500/20 text-green-300 border border-green-500/50'
+                          : p.sentiment_label === 'negative'
+                            ? 'bg-red-500/20 text-red-300 border border-red-500/50'
+                            : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/50'
+                      }`}
+                    >
+                      {p.sentiment_label === 'positive'
+                        ? '😊 '
+                        : p.sentiment_label === 'negative'
+                          ? '😞 '
+                          : '😐 '}
+                      {(p.sentiment_label || 'pending').toUpperCase()}
+                    </span>
                   </td>
-                  <td className="px-3 py-2 text-slate-200">{p.content}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-full max-w-xs">
+                        <div className="flex justify-between mb-1">
+                          <span className="text-xs font-mono text-cyan-400">
+                            {typeof p.sentiment_score === 'number'
+                              ? p.sentiment_score.toFixed(3)
+                              : '—'}
+                          </span>
+                          <span className="text-xs text-slate-400">
+                            {typeof p.sentiment_score === 'number'
+                              ? `${Math.round((p.sentiment_score + 1) * 50)}%`
+                              : '—'}
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${
+                              p.sentiment_score && p.sentiment_score > 0
+                                ? 'bg-green-500'
+                                : p.sentiment_score && p.sentiment_score < 0
+                                  ? 'bg-red-500'
+                                  : 'bg-yellow-500'
+                            }`}
+                            style={{
+                              width: `${
+                                p.sentiment_score
+                                  ? Math.round((p.sentiment_score + 1) * 50)
+                                  : 50
+                              }%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-slate-300 max-w-md truncate hover:text-wrap">
+                    {p.content}
+                  </td>
                 </tr>
               ))}
             </tbody>

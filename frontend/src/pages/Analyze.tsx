@@ -54,30 +54,63 @@ export default function AnalyzePage() {
       }
 
       // 🔹 STEP 2: Analyze sentiment (YouTube only)
-      const sentimentResp = await api.post<SentimentAnalysisResponse>(
-        '/analyze-sentiment',
-        {
-          product_name: product,
-          brand_name: brand,
-          platform: 'YouTube',
-          start_date: '2023-01-01',
-          end_date: '2027-12-31',
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+
+      try {
+        const sentimentResp = await api.post<SentimentAnalysisResponse>(
+          '/analyze-sentiment',
+          {
+            product_name: product,
+            brand_name: brand,
+            platform: 'YouTube',
+            start_date: '2023-01-01',
+            end_date: '2027-12-31',
+          },
+          { signal: controller.signal }
+        );
+        clearTimeout(timeoutId);
+        setSentiment(sentimentResp.data);
+      } catch (analyzeErr: any) {
+        clearTimeout(timeoutId);
+        if (analyzeErr.name === 'AbortError') {
+          throw new Error(
+            'Analysis timeout - took too long. Please try again.'
+          );
         }
-      );
-      setSentiment(sentimentResp.data);
+        throw analyzeErr;
+      }
 
       // 🔹 STEP 3: Predict sales loss
-      const predictionResp = await api.post<SalesLossPredictionResponse>(
-        '/predict-sales-loss',
-        {
-          product_name: product,
-          brand_name: brand,
-          platform: 'YouTube',
-          start_date: '2023-01-01',
-          end_date: '2027-12-31',
+      const predictionController = new AbortController();
+      const predictionTimeoutId = setTimeout(
+        () => predictionController.abort(),
+        30000
+      ); // 30 second timeout
+
+      try {
+        const predictionResp = await api.post<SalesLossPredictionResponse>(
+          '/predict-sales-loss',
+          {
+            product_name: product,
+            brand_name: brand,
+            platform: 'YouTube',
+            start_date: '2023-01-01',
+            end_date: '2027-12-31',
+          },
+          { signal: predictionController.signal }
+        );
+        clearTimeout(predictionTimeoutId);
+        setPrediction(predictionResp.data);
+      } catch (predictionErr: any) {
+        clearTimeout(predictionTimeoutId);
+        if (predictionErr.name === 'AbortError') {
+          throw new Error(
+            'Prediction timeout - took too long. Please try again.'
+          );
         }
-      );
-      setPrediction(predictionResp.data);
+        throw predictionErr;
+      }
     } catch (err) {
       setError(formatError(err));
     } finally {
@@ -153,13 +186,65 @@ export default function AnalyzePage() {
               </p>
             </div>
 
-            <div className="bg-slate-900/70 rounded-xl p-3">
-              <p className="text-cyan-200">Predicted Sales Drop</p>
-              <p className="text-2xl text-white">
+            {/* Sales Loss Meter */}
+            <div className="bg-gradient-to-br from-red-950/50 to-orange-950/50 rounded-xl p-4 border border-red-500/30">
+              <div className="flex justify-between items-center mb-2">
+                <p className="text-red-200 font-semibold">
+                  Predicted Sales Loss
+                </p>
+                <span
+                  className={`px-3 py-1 rounded-lg text-sm font-bold ${
+                    prediction.risk_level === 'High'
+                      ? 'bg-red-600/80 text-white'
+                      : prediction.risk_level === 'Medium'
+                        ? 'bg-orange-600/80 text-white'
+                        : 'bg-green-600/80 text-white'
+                  }`}
+                >
+                  {prediction.risk_level} Risk
+                </span>
+              </div>
+
+              {/* Percentage Display */}
+              <p className="text-4xl text-white font-bold mb-3">
                 {prediction.predicted_drop_percentage.toFixed(1)}%
               </p>
-              <p className="text-sm text-slate-300">
-                Risk: {prediction.risk_level}
+
+              {/* Progress Bar */}
+              <div className="w-full bg-slate-800 rounded-full h-3 overflow-hidden mb-3">
+                <div
+                  className={`h-full transition-all ${
+                    prediction.predicted_drop_percentage > 30
+                      ? 'bg-red-500'
+                      : prediction.predicted_drop_percentage > 15
+                        ? 'bg-orange-500'
+                        : 'bg-green-500'
+                  }`}
+                  style={{
+                    width: `${Math.min(prediction.predicted_drop_percentage, 40)}%`,
+                  }}
+                />
+              </div>
+
+              {/* Supporting Metrics */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-slate-900/50 rounded-lg p-2">
+                  <p className="text-slate-400">Loss Probability</p>
+                  <p className="text-white font-semibold">
+                    {(prediction.loss_probability * 100).toFixed(0)}%
+                  </p>
+                </div>
+                <div className="bg-slate-900/50 rounded-lg p-2">
+                  <p className="text-slate-400">Confidence</p>
+                  <p className="text-white font-semibold">
+                    {(prediction.confidence * 100).toFixed(0)}%
+                  </p>
+                </div>
+              </div>
+
+              {/* Explanation */}
+              <p className="mt-3 text-xs text-slate-300 italic">
+                {prediction.explanation}
               </p>
             </div>
 
@@ -168,6 +253,13 @@ export default function AnalyzePage() {
               className="btn-ghost w-full rounded-xl py-3"
             >
               View Dashboard
+            </button>
+
+            <button
+              onClick={() => navigate('/report')}
+              className="btn-primary w-full rounded-xl py-3"
+            >
+              📊 View Detailed Report
             </button>
           </div>
         )}
