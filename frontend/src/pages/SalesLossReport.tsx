@@ -101,25 +101,25 @@ export default function SalesLossReportPage() {
   // Sentiment distribution pie data
   const sentimentDistribution = sentimentMetrics
     ? [
-        {
-          name: 'Negative',
-          value: sentimentMetrics.negative_percentage,
-          color: '#ef4444',
-        },
-        {
-          name: 'Neutral',
-          value:
-            100 -
-            sentimentMetrics.negative_percentage -
-            (100 - sentimentMetrics.negative_percentage) * 0.4,
-          color: '#f59e0b',
-        },
-        {
-          name: 'Positive',
-          value: (100 - sentimentMetrics.negative_percentage) * 0.4,
-          color: '#10b981',
-        },
-      ]
+      {
+        name: 'Negative',
+        value: sentimentMetrics.negative_percentage,
+        color: '#ef4444',
+      },
+      {
+        name: 'Neutral',
+        value:
+          100 -
+          sentimentMetrics.negative_percentage -
+          (100 - sentimentMetrics.negative_percentage) * 0.4,
+        color: '#f59e0b',
+      },
+      {
+        name: 'Positive',
+        value: (100 - sentimentMetrics.negative_percentage) * 0.4,
+        color: '#10b981',
+      },
+    ]
     : [];
 
   // Impact projection data
@@ -232,13 +232,12 @@ export default function SalesLossReportPage() {
               </div>
               <div className="mt-4 h-2 bg-slate-800 rounded-full overflow-hidden">
                 <div
-                  className={`h-full ${
-                    salesData.predicted_drop_percentage > 30
+                  className={`h-full ${salesData.predicted_drop_percentage > 30
                       ? 'bg-red-500'
                       : salesData.predicted_drop_percentage > 15
                         ? 'bg-orange-500'
                         : 'bg-green-500'
-                  }`}
+                    }`}
                   style={{
                     width: `${Math.min(salesData.predicted_drop_percentage, 40)}%`,
                   }}
@@ -370,7 +369,7 @@ export default function SalesLossReportPage() {
                   {Math.round(
                     (sentimentMetrics.total_posts *
                       sentimentMetrics.negative_percentage) /
-                      100
+                    100
                   )}
                 </p>
                 <p className="text-xs text-slate-400">Negative</p>
@@ -387,7 +386,7 @@ export default function SalesLossReportPage() {
                     (sentimentMetrics.total_posts *
                       (100 - sentimentMetrics.negative_percentage) *
                       0.4) /
-                      100
+                    100
                   )}
                 </p>
                 <p className="text-xs text-slate-400">Positive</p>
@@ -600,26 +599,24 @@ export default function SalesLossReportPage() {
                   Predicted Impact
                 </span>
                 <span
-                  className={`text-sm font-bold ${
-                    salesData.predicted_drop_percentage > 30
+                  className={`text-sm font-bold ${salesData.predicted_drop_percentage > 30
                       ? 'text-red-400'
                       : salesData.predicted_drop_percentage > 15
                         ? 'text-orange-400'
                         : 'text-green-400'
-                  }`}
+                    }`}
                 >
                   {salesData.predicted_drop_percentage.toFixed(1)}% drop
                 </span>
               </div>
               <div className="h-3 bg-slate-800 rounded-full overflow-hidden">
                 <div
-                  className={`h-full ${
-                    salesData.predicted_drop_percentage > 30
+                  className={`h-full ${salesData.predicted_drop_percentage > 30
                       ? 'bg-gradient-to-r from-red-500 to-red-600'
                       : salesData.predicted_drop_percentage > 15
                         ? 'bg-gradient-to-r from-orange-500 to-red-500'
                         : 'bg-gradient-to-r from-green-500 to-cyan-500'
-                  }`}
+                    }`}
                   style={{
                     width: `${Math.min(salesData.predicted_drop_percentage, 100)}%`,
                   }}
@@ -708,64 +705,142 @@ export default function SalesLossReportPage() {
       </div>
 
       {/* Recovery Timeline */}
-      {salesData && (
-        <div className="glass neon-border rounded-2xl p-6">
-          <h3 className="mb-4 text-xl font-semibold text-white">
-            Expected Recovery Timeline
-          </h3>
-          <div className="relative pt-8">
-            {/* Timeline */}
-            <div className="space-y-6">
-              {[
-                {
-                  week: 'Week 1-2',
-                  milestone: 'First Response',
-                  recovery: '5-10%',
-                  icon: '🎯',
-                },
-                {
-                  week: 'Week 3-4',
-                  milestone: 'Quick Fixes Deployed',
-                  recovery: '10-20%',
-                  icon: '⚙️',
-                },
-                {
-                  week: 'Month 2-3',
-                  milestone: 'Product Improvements',
-                  recovery: '20-35%',
-                  icon: '🔧',
-                },
-                {
-                  week: 'Month 3+',
-                  milestone: 'Full Recovery',
-                  recovery: '35-50%+',
-                  icon: '✅',
-                },
-              ].map((item, idx) => (
-                <div key={idx} className="flex gap-4">
-                  <div className="flex flex-col items-center">
-                    <div className="text-2xl">{item.icon}</div>
-                    {idx < 3 && (
-                      <div className="w-1 h-8 bg-gradient-to-b from-cyan-500 to-transparent mt-2" />
-                    )}
-                  </div>
-                  <div className="flex-1 bg-slate-900/50 rounded-xl p-4 border border-slate-700">
-                    <p className="text-xs font-semibold text-cyan-400">
-                      {item.week}
-                    </p>
-                    <p className="text-sm font-semibold text-white mt-1">
-                      {item.milestone}
-                    </p>
-                    <p className="text-xs text-slate-400 mt-2">
-                      Recovery: {item.recovery}
-                    </p>
-                  </div>
-                </div>
-              ))}
+      {salesData && (() => {
+        const drop = salesData.predicted_drop_percentage;
+        const risk = salesData.risk_level;
+
+        // Dynamically build timeline phases based on risk/drop
+        const phases = [
+          {
+            icon: '🎯',
+            label: risk === 'High' ? 'Week 1' : 'Week 1-2',
+            title: 'Damage Control',
+            description: 'Acknowledge negative feedback publicly. Assign a response team to top complaints on YouTube.',
+            actions: ['Reply to high-engagement negative comments', 'Flag recurring issues to product team', 'Post a public statement or update if needed'],
+            recoveryPct: Math.round(drop * 0.15),
+            sentimentLift: '+0.05 avg score',
+            color: 'red',
+          },
+          {
+            icon: '⚙️',
+            label: risk === 'High' ? 'Week 2-3' : 'Week 3-4',
+            title: 'Quick Fixes',
+            description: 'Ship fast-turnaround improvements. Update product listings, FAQs, and known issue pages.',
+            actions: ['Fix most-complained bugs or UX issues', 'Update product description to set correct expectations', 'Send follow-up to affected customers'],
+            recoveryPct: Math.round(drop * 0.35),
+            sentimentLift: '+0.12 avg score',
+            color: 'orange',
+          },
+          {
+            icon: '🔧',
+            label: 'Month 2-3',
+            title: 'Product Improvements',
+            description: 'Implement deeper product or service improvements informed by sentiment themes.',
+            actions: ['Release major update addressing root causes', 'Launch customer satisfaction survey', 'A/B test improved messaging & positioning'],
+            recoveryPct: Math.round(drop * 0.65),
+            sentimentLift: '+0.22 avg score',
+            color: 'yellow',
+          },
+          {
+            icon: '✅',
+            label: risk === 'Low' ? 'Month 2+' : 'Month 3-4',
+            title: 'Full Recovery',
+            description: 'Sentiment stabilises above baseline. Sales model risk level drops to Low.',
+            actions: ['Monitor weekly sentiment; target < 20% negative', 'Build loyalty program to sustain positive momentum', 'Re-run FORESIGHT analysis to confirm recovery'],
+            recoveryPct: Math.round(drop * 0.90),
+            sentimentLift: '+0.30 avg score',
+            color: 'green',
+          },
+        ];
+
+        const colorMap: Record<string, { border: string; bg: string; text: string; bar: string; badge: string }> = {
+          red: { border: 'border-red-500/30', bg: 'bg-red-950/20', text: 'text-red-300', bar: 'bg-red-500', badge: 'bg-red-500/20 text-red-300' },
+          orange: { border: 'border-orange-500/30', bg: 'bg-orange-950/20', text: 'text-orange-300', bar: 'bg-orange-500', badge: 'bg-orange-500/20 text-orange-300' },
+          yellow: { border: 'border-yellow-500/30', bg: 'bg-yellow-950/20', text: 'text-yellow-300', bar: 'bg-yellow-400', badge: 'bg-yellow-500/20 text-yellow-300' },
+          green: { border: 'border-green-500/30', bg: 'bg-green-950/20', text: 'text-green-300', bar: 'bg-green-500', badge: 'bg-green-500/20 text-green-300' },
+        };
+
+        return (
+          <div className="glass neon-border rounded-2xl p-6">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-xl font-semibold text-white">Expected Recovery Timeline</h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Based on a <span className={risk === 'High' ? 'text-red-400' : risk === 'Medium' ? 'text-orange-400' : 'text-green-400'}>{risk} risk</span> profile with a predicted {drop.toFixed(1)}% sales drop
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-cyan-300">{Math.round(drop * 0.90)}%</p>
+                <p className="text-xs text-slate-400">recoverable with action</p>
+              </div>
             </div>
+
+            {/* Timeline Phases */}
+            <div className="space-y-4">
+              {phases.map((phase, idx) => {
+                const c = colorMap[phase.color];
+                const barWidth = Math.min((phase.recoveryPct / drop) * 100, 100);
+                return (
+                  <div key={idx} className={`rounded-xl border ${c.border} ${c.bg} p-4`}>
+                    {/* Phase header */}
+                    <div className="flex items-start gap-3">
+                      <div className="flex flex-col items-center">
+                        <span className="text-xl">{phase.icon}</span>
+                        {idx < phases.length - 1 && (
+                          <div className="w-px h-4 bg-gradient-to-b from-slate-500 to-transparent mt-2" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div>
+                            <span className={`text-xs font-bold uppercase tracking-wider ${c.text}`}>{phase.label}</span>
+                            <h4 className="text-sm font-semibold text-white mt-0.5">{phase.title}</h4>
+                          </div>
+                          <div className="flex gap-2 shrink-0">
+                            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${c.badge}`}>
+                              ↑ {phase.sentimentLift}
+                            </span>
+                            <span className="rounded-full bg-cyan-500/15 px-2 py-0.5 text-xs font-semibold text-cyan-300">
+                              ~{phase.recoveryPct}% recovered
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Recovery progress bar */}
+                        <div className="mt-3 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${c.bar} transition-all duration-700`}
+                            style={{ width: `${barWidth}%` }}
+                          />
+                        </div>
+
+                        {/* Description */}
+                        <p className="mt-2 text-xs text-slate-400 leading-relaxed">{phase.description}</p>
+
+                        {/* Actions */}
+                        <ul className="mt-2 space-y-1">
+                          {phase.actions.map((a) => (
+                            <li key={a} className="flex items-start gap-1.5 text-xs text-slate-300">
+                              <span className={`${c.text} mt-0.5`}>›</span>
+                              {a}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Footer note */}
+            <p className="mt-4 text-xs text-slate-500 text-center">
+              ⏱ Timeline accelerates with early action. Re-run analysis weekly to track sentiment improvement.
+            </p>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Comparative Metrics */}
       {sentimentMetrics && (
@@ -802,16 +877,14 @@ export default function SalesLossReportPage() {
             ].map((metric, idx) => (
               <div
                 key={idx}
-                className={`rounded-lg p-3 flex items-center gap-3 border ${
-                  metric.status === '✓'
+                className={`rounded-lg p-3 flex items-center gap-3 border ${metric.status === '✓'
                     ? 'bg-green-950/30 border-green-500/30'
                     : 'bg-red-950/30 border-red-500/30'
-                }`}
+                  }`}
               >
                 <span
-                  className={`text-2xl font-bold ${
-                    metric.status === '✓' ? 'text-green-400' : 'text-red-400'
-                  }`}
+                  className={`text-2xl font-bold ${metric.status === '✓' ? 'text-green-400' : 'text-red-400'
+                    }`}
                 >
                   {metric.status}
                 </span>
