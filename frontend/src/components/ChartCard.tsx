@@ -11,7 +11,7 @@ export default function ChartCard({ title, action, children }: Props) {
         <h3 className="text-lg font-semibold text-white">{title}</h3>
         {action}
       </div>
-      <div className="h-64 w-full">{children}</div>
+      <div className="h-64 w-full min-h-[256px] overflow-hidden">{children}</div>
     </div>
   );
 }

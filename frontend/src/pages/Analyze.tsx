@@ -102,6 +102,12 @@ export default function AnalyzePage() {
         );
         clearTimeout(predictionTimeoutId);
         setPrediction(predictionResp.data);
+
+        // ⚡ Invalidate Dashboard + Report caches so they show the same fresh values
+        localStorage.removeItem('dashboard_cache');
+        localStorage.removeItem('dashboard_cache_ts');
+        localStorage.removeItem('report_sales_cache');
+        localStorage.removeItem('report_sentiment_cache');
       } catch (predictionErr: any) {
         clearTimeout(predictionTimeoutId);
         if (predictionErr.name === 'AbortError') {
@@ -193,13 +199,12 @@ export default function AnalyzePage() {
                   Predicted Sales Loss
                 </p>
                 <span
-                  className={`px-3 py-1 rounded-lg text-sm font-bold ${
-                    prediction.risk_level === 'High'
+                  className={`px-3 py-1 rounded-lg text-sm font-bold ${prediction.risk_level === 'High'
                       ? 'bg-red-600/80 text-white'
                       : prediction.risk_level === 'Medium'
                         ? 'bg-orange-600/80 text-white'
                         : 'bg-green-600/80 text-white'
-                  }`}
+                    }`}
                 >
                   {prediction.risk_level} Risk
                 </span>
@@ -213,13 +218,12 @@ export default function AnalyzePage() {
               {/* Progress Bar */}
               <div className="w-full bg-slate-800 rounded-full h-3 overflow-hidden mb-3">
                 <div
-                  className={`h-full transition-all ${
-                    prediction.predicted_drop_percentage > 30
+                  className={`h-full transition-all ${prediction.predicted_drop_percentage > 30
                       ? 'bg-red-500'
                       : prediction.predicted_drop_percentage > 15
                         ? 'bg-orange-500'
                         : 'bg-green-500'
-                  }`}
+                    }`}
                   style={{
                     width: `${Math.min(prediction.predicted_drop_percentage, 40)}%`,
                   }}

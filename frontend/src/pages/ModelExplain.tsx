@@ -9,15 +9,15 @@ const models = [
   },
   {
     tag: "Transformer",
-    name: "DistilBERT Sentiment Analysis",
+    name: "Twitter-RoBERTa Sentiment Analysis",
     icon: "⚡",
     description:
-      "A lightweight version of BERT fine-tuned on the Stanford Sentiment Treebank (SST-2). Classifies each comment as POSITIVE or NEGATIVE with a confidence score, then maps it to a continuous sentiment score from −1 (very negative) to +1 (very positive).",
+      "A RoBERTa model fine-tuned on ~124M tweets by Cardiff NLP. Classifies each comment as POSITIVE, NEGATIVE, or NEUTRAL with a confidence score, then maps it to a continuous sentiment score from −1 (very negative) to +1 (very positive). Chosen for its strong performance on short, informal social-media text.",
     details: [
-      "Model: distilbert-base-uncased-finetuned-sst-2-english",
-      "40% smaller than BERT, 60% faster — same accuracy",
+      "Model: cardiffnlp/twitter-roberta-base-sentiment-latest",
+      "Trained on 124M tweets — ideal for YouTube comment language",
+      "Native 3-class output: positive / negative / neutral",
       "Runs locally via Hugging Face Transformers + PyTorch",
-      "Batch inference for high comment volumes",
     ],
   },
   {

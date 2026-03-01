@@ -24,8 +24,25 @@ import ChatPanel from '../components/ChatPanel';
 const PIE_COLORS = ['#22d3ee', '#38bdf8', '#6366f1'];
 
 export default function DashboardPage() {
-  const [data, setData] = useState<DashboardResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<DashboardResponse | null>(() => {
+    // ⚡ Load cached data immediately so the dashboard shows without a spinner
+    try {
+      const cached = localStorage.getItem('dashboard_cache');
+      return cached ? (JSON.parse(cached) as DashboardResponse) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [loading, setLoading] = useState(() => {
+    // Only start in loading state if cache is stale (> 5 min) or missing
+    try {
+      const ts = localStorage.getItem('dashboard_cache_ts');
+      if (!ts) return true;
+      return Date.now() - parseInt(ts, 10) > 5 * 60 * 1000;
+    } catch {
+      return true;
+    }
+  });
   const [error, setError] = useState('');
 
   const fetchData = async () => {
@@ -39,16 +56,21 @@ export default function DashboardPage() {
         params: {
           product_name: localStorage.getItem('product_name') || 'S23',
           brand_name: localStorage.getItem('brand_name') || 'Samsung',
-          platform: 'YouTube', // 🔒 Locked to YouTube
+          platform: 'YouTube',
         },
         signal: controller.signal,
       });
       setData(res.data);
+      // ⚡ Cache result + timestamp for instant reload next time
+      try {
+        localStorage.setItem('dashboard_cache', JSON.stringify(res.data));
+        localStorage.setItem('dashboard_cache_ts', String(Date.now()));
+      } catch { }
     } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        setError(
-          'Request timeout - dashboard is taking too long to load. Please refresh the page.'
-        );
+      if (err instanceof Error && (err.name === 'AbortError' || err.name === 'CanceledError')) {
+        setError('Request timed out. Please refresh the page.');
+      } else if (err instanceof Error && err.message === 'canceled') {
+        // Silently ignore axios cancel errors (component unmounted mid-request)
       } else {
         setError(formatError(err));
       }
@@ -59,6 +81,14 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
+    // Skip fetch if cache is fresh (< 5 min)
+    try {
+      const ts = localStorage.getItem('dashboard_cache_ts');
+      if (ts && Date.now() - parseInt(ts, 10) < 5 * 60 * 1000) {
+        setLoading(false);
+        return;
+      }
+    } catch { /* ignore */ }
     fetchData();
   }, []);
 
@@ -76,7 +106,7 @@ export default function DashboardPage() {
     return 'good';
   };
 
-  if (loading) {
+  if (loading && !data) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <DynamicLoader message="Loading Dashboard..." size="lg" />
@@ -86,6 +116,13 @@ export default function DashboardPage() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1.6fr_0.9fr]">
+      {/* Background-refresh indicator */}
+      {loading && data && (
+        <div className="col-span-full flex items-center gap-2 rounded-xl border border-cyan-500/20 bg-cyan-500/5 px-4 py-2 text-xs text-cyan-300">
+          <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-cyan-400" />
+          Refreshing dashboard data…
+        </div>
+      )}
       {/* LEFT SECTION */}
       <div className="space-y-4">
         {/* KPI CARDS */}
@@ -211,7 +248,7 @@ export default function DashboardPage() {
           <>
             <div className="grid gap-3 md:grid-cols-2">
               <ChartCard title="Sentiment Trend (30d)">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={240}>
                   <LineChart data={data.sentiment_trend}>
                     <XAxis dataKey="date" hide />
                     <YAxis domain={[-1, 1]} />
@@ -228,7 +265,7 @@ export default function DashboardPage() {
               </ChartCard>
 
               <ChartCard title="Sentiment Distribution">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={240}>
                   <PieChart>
                     <Pie
                       data={Object.entries(data.sentiment_distribution).map(
@@ -259,7 +296,7 @@ export default function DashboardPage() {
             <div className="grid gap-3 md:grid-cols-2">
               {hasComments && (
                 <ChartCard title="Comment Volume">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height={240}>
                     <BarChart data={data.comment_volume}>
                       <XAxis dataKey="date" hide />
                       <YAxis />
@@ -276,7 +313,7 @@ export default function DashboardPage() {
 
               {hasSales && (
                 <ChartCard title="Actual vs Predicted Sales">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height={240}>
                     <LineChart data={data.sales_series}>
                       <XAxis dataKey="date" hide />
                       <YAxis />
@@ -321,9 +358,8 @@ export default function DashboardPage() {
                         fill="none"
                         stroke="#38bdf8"
                         strokeWidth="8"
-                        strokeDasharray={`${
-                          ((data.kpis.average_sentiment + 1) / 2) * 282.7
-                        } 282.7`}
+                        strokeDasharray={`${((data.kpis.average_sentiment + 1) / 2) * 282.7
+                          } 282.7`}
                         transform="rotate(-90 50 50)"
                       />
                       <text
@@ -345,13 +381,13 @@ export default function DashboardPage() {
                   <div className="text-4xl font-bold text-cyan-400">
                     {data.comment_volume.length > 0
                       ? (
-                          (data.comment_volume.reduce(
-                            (sum, c) => sum + c.total_posts,
-                            0
-                          ) /
-                            data.comment_volume.length) *
-                          0.1
-                        ).toFixed(1)
+                        (data.comment_volume.reduce(
+                          (sum, c) => sum + c.total_posts,
+                          0
+                        ) /
+                          data.comment_volume.length) *
+                        0.1
+                      ).toFixed(1)
                       : '0'}
                     %
                   </div>
@@ -362,15 +398,14 @@ export default function DashboardPage() {
                     {[1, 2, 3, 4, 5].map(i => (
                       <div
                         key={i}
-                        className={`h-2 w-2 rounded-full ${
-                          i <=
+                        className={`h-2 w-2 rounded-full ${i <=
                           Math.min(
                             Math.round((data.kpis.average_sentiment + 1) * 2.5),
                             5
                           )
-                            ? 'bg-cyan-400'
-                            : 'bg-slate-700'
-                        }`}
+                          ? 'bg-cyan-400'
+                          : 'bg-slate-700'
+                          }`}
                       />
                     ))}
                   </div>
@@ -380,38 +415,34 @@ export default function DashboardPage() {
               <ChartCard title="Risk Indicator">
                 <div className="flex flex-col items-center justify-center py-8">
                   <div
-                    className={`text-4xl font-bold ${
-                      data.kpis.risk_level === 'High'
-                        ? 'text-red-400'
-                        : data.kpis.risk_level === 'Medium'
-                          ? 'text-yellow-400'
-                          : 'text-green-400'
-                    }`}
+                    className={`text-4xl font-bold ${data.kpis.risk_level === 'High'
+                      ? 'text-red-400'
+                      : data.kpis.risk_level === 'Medium'
+                        ? 'text-yellow-400'
+                        : 'text-green-400'
+                      }`}
                   >
                     {data.kpis.risk_level}
                   </div>
                   <p className="text-xs text-slate-400 mt-2">Risk Assessment</p>
                   <div className="mt-4 flex gap-2">
                     <div
-                      className={`h-3 w-3 rounded-full ${
-                        data.kpis.risk_level === 'High'
-                          ? 'bg-red-400'
-                          : 'bg-slate-700'
-                      }`}
+                      className={`h-3 w-3 rounded-full ${data.kpis.risk_level === 'High'
+                        ? 'bg-red-400'
+                        : 'bg-slate-700'
+                        }`}
                     />
                     <div
-                      className={`h-3 w-3 rounded-full ${
-                        data.kpis.risk_level === 'Medium'
-                          ? 'bg-yellow-400'
-                          : 'bg-slate-700'
-                      }`}
+                      className={`h-3 w-3 rounded-full ${data.kpis.risk_level === 'Medium'
+                        ? 'bg-yellow-400'
+                        : 'bg-slate-700'
+                        }`}
                     />
                     <div
-                      className={`h-3 w-3 rounded-full ${
-                        data.kpis.risk_level === 'Low'
-                          ? 'bg-green-400'
-                          : 'bg-slate-700'
-                      }`}
+                      className={`h-3 w-3 rounded-full ${data.kpis.risk_level === 'Low'
+                        ? 'bg-green-400'
+                        : 'bg-slate-700'
+                        }`}
                     />
                   </div>
                 </div>
@@ -574,11 +605,11 @@ export default function DashboardPage() {
                 <span className="text-cyan-400 font-semibold">
                   {data.comment_volume.length > 0
                     ? Math.round(
-                        data.comment_volume.reduce(
-                          (sum, c) => sum + c.total_posts,
-                          0
-                        ) / data.comment_volume.length
-                      )
+                      data.comment_volume.reduce(
+                        (sum, c) => sum + c.total_posts,
+                        0
+                      ) / data.comment_volume.length
+                    )
                     : 0}
                 </span>
               </div>

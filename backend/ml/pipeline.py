@@ -70,21 +70,18 @@ class SentimentAndSalesPipeline:
         if not posts:
             return SentimentSummary(0.0, 0.0, 0)
 
-        # 🔥 Filter relevant posts using semantic similarity
-        relevant_posts = [
-            post for post in posts
-            if is_relevant_comment(post.content, post.product_name)
-        ]
+        # ⚡ OPTIMIZATION: Split into already-analyzed and new posts
+        already_analyzed = [p for p in posts if p.sentiment]
+        new_posts = [p for p in posts if not p.sentiment]
 
-        if not relevant_posts:
-            return SentimentSummary(0.0, 0.0, 0)
-
+        # Count sentiment from already-stored DB labels (no ML needed)
         total_score = 0.0
         positive = negative = neutral = 0
 
-        for post in relevant_posts:
-            score, label, _ = self._score_text(post.content)
-
+        for post in already_analyzed:
+            label = (post.sentiment.sentiment_label or "").lower()
+            score = post.sentiment.sentiment_score or 0.0
+            total_score += score
             if label == "positive":
                 positive += 1
             elif label == "negative":
@@ -92,21 +89,35 @@ class SentimentAndSalesPipeline:
             else:
                 neutral += 1
 
-            total_score += score
+        # Only run expensive ML on NEW posts (not yet analyzed)
+        if new_posts:
+            for post in new_posts:
+                score, label, _ = self._score_text(post.content)
+                total_score += score
+                if label == "positive":
+                    positive += 1
+                elif label == "negative":
+                    negative += 1
+                else:
+                    neutral += 1
 
-            if not post.sentiment:
-                db.add(models.SentimentScore(
-                    post_id=post.id,
-                    sentiment_label=label,
-                    sentiment_score=score,
-                ))
-            else:
-                post.sentiment.sentiment_label = label
-                post.sentiment.sentiment_score = score
+                # Guard against concurrent duplicate inserts
+                existing = db.query(models.SentimentScore).filter(
+                    models.SentimentScore.post_id == post.id
+                ).first()
+                if not existing:
+                    db.add(models.SentimentScore(
+                        post_id=post.id,
+                        sentiment_label=label,
+                        sentiment_score=score,
+                    ))
 
-        db.commit()
+            db.commit()
 
-        total_posts = len(relevant_posts)
+        total_posts = positive + negative + neutral
+
+        if total_posts == 0:
+            return SentimentSummary(0.0, 0.0, 0)
 
         return SentimentSummary(
             average_sentiment=total_score / total_posts,
@@ -122,11 +133,11 @@ class SentimentAndSalesPipeline:
     # =====================================================
 
     def _calculate_sales_loss(self, negative_percentage, comment_volume, revenues):
-        base_loss = (negative_percentage / 100.0) ** 1.5 * 40.0
-        volume_confidence = min(1.0, max(0.3, comment_volume / 50.0))
+        base_loss = (negative_percentage / 100.0) ** 1.1 * 50.0
+        volume_confidence = min(1.0, max(0.5, comment_volume / 100.0))
         adjusted_loss = base_loss * volume_confidence
 
-        loss_prob = 1.0 / (1.0 + np.exp(-(negative_percentage - 15.0) / 5.0))
+        loss_prob = 1.0 / (1.0 + np.exp(-(negative_percentage - 40.0) / 12.0))
 
         recent_rev = revenues[-1] if revenues else 10000.0
         predicted_revenue = recent_rev * (1.0 - adjusted_loss / 100.0)
@@ -190,6 +201,7 @@ class SentimentAndSalesPipeline:
     # =====================================================
 
     def build_dashboard(self, db: Session, product_name: str, brand_name: str, platform: str):
+        from collections import defaultdict
 
         posts = crud.get_social_posts_only(db, product_name, brand_name, platform)
 
@@ -222,6 +234,42 @@ class SentimentAndSalesPipeline:
             "negative": summary.negative_count,
         }
 
+        # Build comment_volume and sentiment_trend grouped by date
+        date_groups: dict = defaultdict(lambda: {"total": 0, "score_sum": 0.0})
+        for post in posts:
+            d = post.posted_at
+            date_groups[d]["total"] += 1
+            if post.sentiment:
+                date_groups[d]["score_sum"] += post.sentiment.sentiment_score or 0.0
+
+        sorted_dates = sorted(date_groups.keys())
+
+        comment_volume = [
+            schemas.SentimentDailyPoint(
+                date=d,
+                average_sentiment=date_groups[d]["score_sum"] / date_groups[d]["total"]
+                    if date_groups[d]["total"] > 0 else 0.0,
+                total_posts=date_groups[d]["total"],
+            )
+            for d in sorted_dates
+        ]
+
+        sentiment_trend = comment_volume  # same data, reused for trend chart
+
+        # Calculate risk level
+        neg_pct = summary.negative_percentage
+        loss_prob = 1.0 / (1.0 + np.exp(-(neg_pct - 40.0) / 12.0))
+        base_drop = (neg_pct / 100.0) ** 1.1 * 50.0
+        volume_conf = min(1.0, max(0.5, summary.total_posts / 100.0))
+        predicted_drop = base_drop * volume_conf
+
+        if loss_prob < 0.25:
+            risk = "Low"
+        elif loss_prob < 0.60:
+            risk = "Medium"
+        else:
+            risk = "High"
+
         return schemas.DashboardResponse(
             kpis=schemas.KPISection(
                 average_sentiment=summary.average_sentiment,
@@ -231,16 +279,18 @@ class SentimentAndSalesPipeline:
                 positive_count=summary.positive_count,
                 negative_count=summary.negative_count,
                 neutral_count=summary.neutral_count,
-                predicted_sales_drop=0.0,
-                risk_level="Low",
+                predicted_sales_drop=predicted_drop,
+                risk_level=risk,
             ),
-            sentiment_trend=[],
+            sentiment_trend=sentiment_trend,
             sentiment_distribution=sentiment_distribution,
-            comment_volume=[],
+            comment_volume=comment_volume,
             sales_series=[],
             ai_insights=[
-                f"Average sentiment: {summary.average_sentiment:.2f}",
-                f"Negative percentage: {summary.negative_percentage:.1f}%"
+                f"Average sentiment score: {summary.average_sentiment:.2f}",
+                f"{summary.negative_percentage:.1f}% of comments are negative",
+                f"Total of {summary.total_posts} relevant comments analyzed",
+                f"Risk level is {risk} with an estimated {predicted_drop:.1f}% sales drop",
             ],
             alerts=[],
         )

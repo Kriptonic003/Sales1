@@ -154,29 +154,18 @@ def get_comments(
     
     start_time = time.time()
     print(f"\n[COMMENTS] Fetching comments for {product_name}...")
-    
-    # First, get or create comments (fetch from YouTube if needed)
-    posts = crud.get_or_create_social_posts(
-        db,
-        schemas.SentimentAnalysisRequest(
-            product_name=product_name,
-            brand_name=brand_name,
-            platform=platform,
-            start_date=date.today() - timedelta(days=365),
-            end_date=date.today(),
-        ),
-    )
-    
+
+    # Get ALL stored posts (no date filter) so every comment can be analyzed
+    all_posts = crud.get_social_posts_only(db, product_name, brand_name, platform)
+
     fetch_time = time.time() - start_time
-    print(f"[COMMENTS] Fetched {len(posts)} posts in {fetch_time:.2f}s")
-    
-    # Only analyze posts that DON'T have sentiment yet
-    if posts:
-        posts_without_sentiment = [p for p in posts if not p.sentiment]
-        posts_with_sentiment = len(posts) - len(posts_without_sentiment)
-        
+    print(f"[COMMENTS] Found {len(all_posts)} total posts in {fetch_time:.2f}s")
+
+    # Analyze ALL posts that don't have sentiment yet
+    if all_posts:
+        posts_without_sentiment = [p for p in all_posts if not p.sentiment]
         if posts_without_sentiment:
-            print(f"[COMMENTS] Found {len(posts_without_sentiment)} new posts to analyze (already have sentiment for {posts_with_sentiment})")
+            print(f"[COMMENTS] Analyzing {len(posts_without_sentiment)} unanalyzed posts...")
             try:
                 analyze_start = time.time()
                 pipeline.analyze_posts(db, posts_without_sentiment)
@@ -184,23 +173,17 @@ def get_comments(
                 print(f"[COMMENTS] Sentiment analysis complete in {analyze_time:.2f}s")
             except Exception as e:
                 print(f"[COMMENTS] Error during sentiment analysis: {e}")
-                # Continue anyway - don't block the response
         else:
-            print(f"[COMMENTS] All {len(posts)} posts already analyzed")
-    
-    # Finally return the comments with sentiment loaded
+            print(f"[COMMENTS] All {len(all_posts)} posts already analyzed")
+
+    # Return comments with sentiment loaded
     retrieve_start = time.time()
     comments = crud.get_comments(db, product_name, brand_name, platform, sentiment_filter)
-    retrieve_time = time.time() - retrieve_start
-    
-    # Convert to schema with sentiment data using from_orm
-    convert_start = time.time()
     result = [schemas.SocialPostOut.from_orm(c) for c in comments]
-    convert_time = time.time() - convert_start
-    
+
     total_time = time.time() - start_time
-    print(f"[COMMENTS] Query: {retrieve_time:.2f}s, Convert: {convert_time:.2f}s, Total: {total_time:.2f}s\n")
-    
+    print(f"[COMMENTS] Returned {len(result)} comments in {total_time:.2f}s total\n")
+
     return result
 
 @app.post("/chat", response_model=schemas.ChatResponse)

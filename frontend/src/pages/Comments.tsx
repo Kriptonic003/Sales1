@@ -67,11 +67,10 @@ export default function CommentsPage() {
             <button
               key={f || 'all'}
               onClick={() => setFilter(f as any)}
-              className={`rounded-full px-3 py-2 text-xs uppercase tracking-wide ${
-                filter === f
+              className={`rounded-full px-3 py-2 text-xs uppercase tracking-wide ${filter === f
                   ? 'bg-cyan-500/20 text-cyan-100'
                   : 'border border-cyan-500/30 text-slate-200'
-              }`}
+                }`}
             >
               {f === '' ? 'All' : f}
             </button>
@@ -119,20 +118,22 @@ export default function CommentsPage() {
                   <td className="px-3 py-2 text-slate-300">{p.platform}</td>
                   <td className="px-3 py-2">
                     <span
-                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                        p.sentiment_label === 'positive'
+                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${p.sentiment_label === 'positive'
                           ? 'bg-green-500/20 text-green-300 border border-green-500/50'
                           : p.sentiment_label === 'negative'
                             ? 'bg-red-500/20 text-red-300 border border-red-500/50'
-                            : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/50'
-                      }`}
+                            : p.sentiment_label === 'neutral'
+                              ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/50'
+                              : 'bg-slate-700/50 text-slate-400 border border-slate-600/50'
+                        }`}
                     >
                       {p.sentiment_label === 'positive'
-                        ? '😊 '
+                        ? '😊 POSITIVE'
                         : p.sentiment_label === 'negative'
-                          ? '😞 '
-                          : '😐 '}
-                      {(p.sentiment_label || 'pending').toUpperCase()}
+                          ? '😞 NEGATIVE'
+                          : p.sentiment_label === 'neutral'
+                            ? '😐 NEUTRAL'
+                            : 'Not analyzed'}
                     </span>
                   </td>
                   <td className="px-3 py-2">
@@ -152,19 +153,17 @@ export default function CommentsPage() {
                         </div>
                         <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
                           <div
-                            className={`h-full ${
-                              p.sentiment_score && p.sentiment_score > 0
+                            className={`h-full ${p.sentiment_score && p.sentiment_score > 0
                                 ? 'bg-green-500'
                                 : p.sentiment_score && p.sentiment_score < 0
                                   ? 'bg-red-500'
                                   : 'bg-yellow-500'
-                            }`}
+                              }`}
                             style={{
-                              width: `${
-                                p.sentiment_score
+                              width: `${p.sentiment_score
                                   ? Math.round((p.sentiment_score + 1) * 50)
                                   : 50
-                              }%`,
+                                }%`,
                             }}
                           />
                         </div>

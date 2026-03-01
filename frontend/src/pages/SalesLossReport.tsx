@@ -1,12 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
-  BarChart,
-  Bar,
   LineChart,
   Line,
-  PieChart,
-  Pie,
-  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -38,9 +33,18 @@ interface SentimentMetrics {
 }
 
 export default function SalesLossReportPage() {
-  const [salesData, setSalesData] = useState<SalesLossData | null>(null);
-  const [sentimentMetrics, setSentimentMetrics] =
-    useState<SentimentMetrics | null>(null);
+  const [salesData, setSalesData] = useState<SalesLossData | null>(() => {
+    try {
+      const c = localStorage.getItem('report_sales_cache');
+      return c ? (JSON.parse(c) as SalesLossData) : null;
+    } catch { return null; }
+  });
+  const [sentimentMetrics, setSentimentMetrics] = useState<SentimentMetrics | null>(() => {
+    try {
+      const c = localStorage.getItem('report_sentiment_cache');
+      return c ? (JSON.parse(c) as SentimentMetrics) : null;
+    } catch { return null; }
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -55,16 +59,25 @@ export default function SalesLossReportPage() {
     setLoading(true);
     setError('');
     try {
-      // Predict sales loss to get latest prediction
-      const predictionRes = await api.post('/predict-sales-loss', {
-        product_name: productName,
-        brand_name: brandName,
-        platform: 'YouTube',
-        start_date: '2023-01-01',
-        end_date: '2027-12-31',
-      });
+      // ⚡ Run both requests in parallel instead of sequentially
+      const [predictionRes, sentimentRes] = await Promise.all([
+        api.post('/predict-sales-loss', {
+          product_name: productName,
+          brand_name: brandName,
+          platform: 'YouTube',
+          start_date: '2023-01-01',
+          end_date: '2027-12-31',
+        }),
+        api.post('/analyze-sentiment', {
+          product_name: productName,
+          brand_name: brandName,
+          platform: 'YouTube',
+          start_date: '2023-01-01',
+          end_date: '2027-12-31',
+        }),
+      ]);
 
-      setSalesData({
+      const newSalesData = {
         product_name: productName,
         brand_name: brandName,
         date: new Date().toISOString().split('T')[0],
@@ -72,25 +85,22 @@ export default function SalesLossReportPage() {
         loss_probability: predictionRes.data.loss_probability,
         risk_level: predictionRes.data.risk_level,
         explanation: predictionRes.data.explanation,
-      });
-
-      // Fetch sentiment analysis for detailed metrics
-      const sentimentRes = await api.post('/analyze-sentiment', {
-        product_name: productName,
-        brand_name: brandName,
-        platform: 'YouTube',
-        start_date: '2023-01-01',
-        end_date: '2027-12-31',
-      });
-
-      setSentimentMetrics({
+      };
+      const newSentimentMetrics = {
         total_posts: sentimentRes.data.total_posts,
         positive_count: 0,
         negative_count: 0,
         neutral_count: 0,
         average_sentiment: sentimentRes.data.average_sentiment,
         negative_percentage: sentimentRes.data.negative_percentage,
-      });
+      };
+      setSalesData(newSalesData);
+      setSentimentMetrics(newSentimentMetrics);
+      // ⚡ Cache for instant reload next visit
+      try {
+        localStorage.setItem('report_sales_cache', JSON.stringify(newSalesData));
+        localStorage.setItem('report_sentiment_cache', JSON.stringify(newSentimentMetrics));
+      } catch { }
     } catch (err) {
       setError(formatError(err));
     } finally {
@@ -98,29 +108,8 @@ export default function SalesLossReportPage() {
     }
   };
 
-  // Sentiment distribution pie data
-  const sentimentDistribution = sentimentMetrics
-    ? [
-      {
-        name: 'Negative',
-        value: sentimentMetrics.negative_percentage,
-        color: '#ef4444',
-      },
-      {
-        name: 'Neutral',
-        value:
-          100 -
-          sentimentMetrics.negative_percentage -
-          (100 - sentimentMetrics.negative_percentage) * 0.4,
-        color: '#f59e0b',
-      },
-      {
-        name: 'Positive',
-        value: (100 - sentimentMetrics.negative_percentage) * 0.4,
-        color: '#10b981',
-      },
-    ]
-    : [];
+
+
 
   // Impact projection data
   const impactProjection = [
@@ -170,7 +159,7 @@ export default function SalesLossReportPage() {
     }
   };
 
-  if (loading) {
+  if (loading && !salesData) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <DynamicLoader
@@ -185,11 +174,7 @@ export default function SalesLossReportPage() {
   if (error) {
     return (
       <div className="container mx-auto p-4">
-        <AlertBanner
-          type="error"
-          message={error}
-          onClose={() => setError('')}
-        />
+        <AlertBanner tone="error" message={error} />
       </div>
     );
   }
@@ -233,10 +218,10 @@ export default function SalesLossReportPage() {
               <div className="mt-4 h-2 bg-slate-800 rounded-full overflow-hidden">
                 <div
                   className={`h-full ${salesData.predicted_drop_percentage > 30
-                      ? 'bg-red-500'
-                      : salesData.predicted_drop_percentage > 15
-                        ? 'bg-orange-500'
-                        : 'bg-green-500'
+                    ? 'bg-red-500'
+                    : salesData.predicted_drop_percentage > 15
+                      ? 'bg-orange-500'
+                      : 'bg-green-500'
                     }`}
                   style={{
                     width: `${Math.min(salesData.predicted_drop_percentage, 40)}%`,
@@ -600,10 +585,10 @@ export default function SalesLossReportPage() {
                 </span>
                 <span
                   className={`text-sm font-bold ${salesData.predicted_drop_percentage > 30
-                      ? 'text-red-400'
-                      : salesData.predicted_drop_percentage > 15
-                        ? 'text-orange-400'
-                        : 'text-green-400'
+                    ? 'text-red-400'
+                    : salesData.predicted_drop_percentage > 15
+                      ? 'text-orange-400'
+                      : 'text-green-400'
                     }`}
                 >
                   {salesData.predicted_drop_percentage.toFixed(1)}% drop
@@ -612,10 +597,10 @@ export default function SalesLossReportPage() {
               <div className="h-3 bg-slate-800 rounded-full overflow-hidden">
                 <div
                   className={`h-full ${salesData.predicted_drop_percentage > 30
-                      ? 'bg-gradient-to-r from-red-500 to-red-600'
-                      : salesData.predicted_drop_percentage > 15
-                        ? 'bg-gradient-to-r from-orange-500 to-red-500'
-                        : 'bg-gradient-to-r from-green-500 to-cyan-500'
+                    ? 'bg-gradient-to-r from-red-500 to-red-600'
+                    : salesData.predicted_drop_percentage > 15
+                      ? 'bg-gradient-to-r from-orange-500 to-red-500'
+                      : 'bg-gradient-to-r from-green-500 to-cyan-500'
                     }`}
                   style={{
                     width: `${Math.min(salesData.predicted_drop_percentage, 100)}%`,
@@ -878,8 +863,8 @@ export default function SalesLossReportPage() {
               <div
                 key={idx}
                 className={`rounded-lg p-3 flex items-center gap-3 border ${metric.status === '✓'
-                    ? 'bg-green-950/30 border-green-500/30'
-                    : 'bg-red-950/30 border-red-500/30'
+                  ? 'bg-green-950/30 border-green-500/30'
+                  : 'bg-red-950/30 border-red-500/30'
                   }`}
               >
                 <span
