@@ -8,6 +8,7 @@ const links = [
   { to: '/report', label: 'Report' },
   { to: '/comments', label: 'Comments' },
   { to: '/model', label: 'Model' },
+  { to: '/rag-chat', label: 'PDF Insights' },
 ];
 
 export default function Navbar() {
@@ -31,8 +32,8 @@ export default function Navbar() {
           <Link
             key={link.to}
             className={`rounded-full px-3 py-2 transition ${pathname === link.to
-                ? 'bg-cyan-500/15 text-cyan-200'
-                : 'text-slate-300 hover:text-white'
+              ? 'bg-cyan-500/15 text-cyan-200'
+              : 'text-slate-300 hover:text-white'
               }`}
             to={link.to}
           >

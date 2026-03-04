@@ -27,6 +27,7 @@ import database
 from ml.pipeline import SentimentAndSalesPipeline
 from services.chatbot import generate_chat_response
 from services.youtube_service import fetch_comments_from_top_videos
+from routers.rag import router as rag_router
 
 # --------------------------------------------------
 # DB + APP SETUP
@@ -34,6 +35,9 @@ from services.youtube_service import fetch_comments_from_top_videos
 models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI(title="AI Sales Loss Prediction API")
+
+# RAG Chatbot router
+app.include_router(rag_router, prefix="/rag")
 
 # --------------------------------------------------
 # CORS CONFIG (IMPORTANT FOR FRONTEND)
@@ -45,6 +49,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # --------------------------------------------------
 # DATABASE DEPENDENCY
@@ -188,7 +193,7 @@ def get_comments(
 
 @app.post("/chat", response_model=schemas.ChatResponse)
 def chat(request: schemas.ChatRequest):
-    reply = generate_chat_response(request.message)
+    reply = generate_chat_response(request.message, context=request.context)
     return schemas.ChatResponse(reply=reply)
 
 # --------------------------------------------------

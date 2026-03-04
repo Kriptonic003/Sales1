@@ -1,7 +1,9 @@
 # Environment variables
 .env
+.env.*
 .env.local
 .env*.local
+!.env.example
 
 # Python
 __pycache__/
@@ -30,6 +32,7 @@ venv/
 ENV/
 env/
 .venv
+.venv/
 
 # IDE
 .vscode/
@@ -42,6 +45,7 @@ env/
 node_modules/
 npm-debug.log
 yarn-error.log
+frontend/dist/
 
 # OS
 .DS_Store
@@ -51,3 +55,18 @@ Thumbs.db
 *.db
 *.sqlite
 *.sqlite3
+
+# Frontend env
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# ML model weights
+*.pt
+*.bin
+*.safetensors
+*.onnx
+
+# Logs
+*.log
+logs/

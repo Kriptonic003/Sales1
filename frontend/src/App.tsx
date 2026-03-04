@@ -7,6 +7,7 @@ import DashboardPage from './pages/Dashboard';
 import CommentsPage from './pages/Comments';
 import ModelExplainPage from './pages/ModelExplain';
 import SalesLossReportPage from './pages/SalesLossReport';
+import RagChatPage from './pages/RagChat';
 
 function App() {
   const navigate = useNavigate();
@@ -26,6 +27,7 @@ function App() {
         <Route path="/comments" element={<CommentsPage />} />
         <Route path="/model" element={<ModelExplainPage />} />
         <Route path="/report" element={<SalesLossReportPage />} />
+        <Route path="/rag-chat" element={<RagChatPage />} />
         <Route path="*" element={<Navigate to="/landing" replace />} />
       </Routes>
     </Layout>

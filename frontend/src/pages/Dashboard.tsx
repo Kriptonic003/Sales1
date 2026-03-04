@@ -632,7 +632,7 @@ export default function DashboardPage() {
 
       {/* RIGHT PANEL */}
       <div className="space-y-4">
-        <ChatPanel />
+        <ChatPanel dashboardData={data} pageLabel="Dashboard" />
         <div className="glass neon-border rounded-2xl p-4">
           <h3 className="text-lg font-semibold text-white">Explanation</h3>
           <p className="mt-2 text-sm text-slate-300">

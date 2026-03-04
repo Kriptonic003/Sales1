@@ -12,6 +12,7 @@ import {
 import { api, formatError } from '../api/client';
 import DynamicLoader from '../components/DynamicLoader';
 import AlertBanner from '../components/AlertBanner';
+import { exportReportPDF } from '../utils/exportPDF';
 
 interface SalesLossData {
   product_name: string;
@@ -47,9 +48,34 @@ export default function SalesLossReportPage() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const productName = localStorage.getItem('product_name') || 'S23';
   const brandName = localStorage.getItem('brand_name') || 'Samsung';
+
+  const handleExportPDF = async () => {
+    if (!salesData || !sentimentMetrics) return;
+    setPdfLoading(true);
+    try {
+      await exportReportPDF(
+        {
+          productName,
+          brandName,
+          date: salesData.date,
+          predictedDropPct: salesData.predicted_drop_percentage,
+          lossProbability: salesData.loss_probability,
+          riskLevel: salesData.risk_level,
+          explanation: salesData.explanation,
+          negativePct: sentimentMetrics.negative_percentage,
+          totalPosts: sentimentMetrics.total_posts,
+          avgSentiment: sentimentMetrics.average_sentiment,
+        },
+        'report-charts-container'
+      );
+    } finally {
+      setPdfLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchReportData();
@@ -190,12 +216,30 @@ export default function SalesLossReportPage() {
               {brandName} • {productName}
             </p>
           </div>
-          <button
-            onClick={fetchReportData}
-            className="btn-ghost rounded-xl px-4 py-2 text-sm"
-          >
-            🔄 Refresh
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleExportPDF}
+              disabled={pdfLoading || !salesData}
+              className="flex items-center gap-2 rounded-xl bg-cyan-500/15 border border-cyan-500/40 px-4 py-2 text-sm font-semibold text-cyan-300 hover:bg-cyan-500/25 hover:border-cyan-400 transition-all disabled:opacity-50"
+            >
+              {pdfLoading ? (
+                <>
+                  <span className="inline-block w-3.5 h-3.5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+                  Generating…
+                </>
+              ) : (
+                <>
+                  📥 Export PDF
+                </>
+              )}
+            </button>
+            <button
+              onClick={fetchReportData}
+              className="btn-ghost rounded-xl px-4 py-2 text-sm"
+            >
+              🔄 Refresh
+            </button>
+          </div>
         </div>
       </div>
 

@@ -118,9 +118,14 @@ class SocialPostOut(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
+    context: Optional[dict] = None   # dashboard/report KPIs injected from the frontend
 
 
 class ChatResponse(BaseModel):
     reply: str
 
 
+class RagChatResponse(BaseModel):
+    answer: str
+    llm_used: str          # "gemini" or "groq"
+    source_chunks: List[str]

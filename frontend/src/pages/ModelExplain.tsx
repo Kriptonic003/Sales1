@@ -48,15 +48,16 @@ const models = [
   },
   {
     tag: "Generative AI",
-    name: "Gemini 1.5 Flash — AI Copilot",
+    name: "Groq AI Copilot — Llama 3.1",
     icon: "✨",
     description:
-      "Google's Gemini 1.5 Flash is used as the conversational AI copilot. It is system-prompted to act as a sales analytics expert and answers user questions about sentiment trends, risk factors, and mitigation strategies in plain business language.",
+      "Meta's Llama 3.1 (8B Instant) served via Groq's ultra-fast inference API powers the AI Copilot on the Dashboard. It is system-prompted as a sales analytics expert and receives live KPI data (sentiment %, risk level, sales drop) so answers are grounded in your actual numbers — not generic advice.",
     details: [
-      "Model: gemini-1.5-flash via Google Generative Language API",
-      "System-prompted for sales & sentiment domain expertise",
-      "Stateless per request — no conversation history stored",
-      "Fallback message shown when API key is not configured",
+      "Model: llama-3.1-8b-instant via Groq API (primary)",
+      "Fallback: Gemini 1.5 Flash via Google Generative Language API",
+      "Live dashboard context injected into every prompt",
+      "Full message history — multi-turn conversational UI",
+      "12 predefined quick-questions covering Dashboard, Comments, Report & Model",
     ],
   },
   {
@@ -70,6 +71,34 @@ const models = [
       "Computes: avg score, negative %, post count",
       "Powers the Dashboard time-series charts",
       "Stored in SQLite for fast retrieval",
+    ],
+  },
+  {
+    tag: "RAG Pipeline",
+    name: "RAG Chatbot — File Q&A",
+    icon: "📂",
+    description:
+      "A Retrieval-Augmented Generation pipeline that lets users upload any document and ask natural language questions about it. Documents are chunked, indexed with TF-IDF, and the most relevant chunks are passed as context to Groq's Llama 3.1 to generate accurate, grounded answers.",
+    details: [
+      "Supported formats: PDF, DOCX, XLSX/XLS, CSV, PPTX, TXT, MD",
+      "Retrieval: TF-IDF + cosine similarity via scikit-learn (no GPU needed)",
+      "LLM: Groq llama-3.1-8b-instant (primary) → Gemini fallback",
+      "Runs in a ThreadPoolExecutor to keep FastAPI responsive",
+      "Max 150 chunks per document to prevent memory overload",
+    ],
+  },
+  {
+    tag: "Reporting",
+    name: "PDF Export Engine",
+    icon: "📥",
+    description:
+      "A fully client-side PDF generator that creates a 2-page branded report on demand. Page 1 is a professional cover with a risk badge and headline KPIs. Page 2 contains detailed metric bars, priority action items, and an optional screenshot of the Revenue Impact chart.",
+    details: [
+      "Library: jsPDF (vector drawing) + html2canvas (chart screenshot)",
+      "White background, FORESIGHT branding, cyan accents",
+      "Auto-named file: FORESIGHT_Brand_Product_Date.pdf",
+      "Colored dots instead of emoji — renders correctly in all PDF viewers",
+      "No backend required — runs entirely in the browser",
     ],
   },
 ];
