@@ -9,7 +9,7 @@ from sklearn.linear_model import LogisticRegression, LinearRegression
 import models
 import schemas
 import crud
-from ml.sentiment_classifier import DistilBERTSentimentClassifier
+from ml.sentiment_classifier import TargetedSentimentClassifier, DistilBERTSentimentClassifier
 
 # =====================================================
 # AI RELEVANCE FILTER (LIGHTWEIGHT)
@@ -52,14 +52,15 @@ class SentimentSummary:
 class SentimentAndSalesPipeline:
 
     def __init__(self):
-        self.sentiment_classifier = DistilBERTSentimentClassifier()
+        self.sentiment_classifier = TargetedSentimentClassifier()
+        self.legacy_classifier = DistilBERTSentimentClassifier()
         self.loss_classifier = LogisticRegression()
         self.sales_regressor = LinearRegression()
         self._trained = False
 
     def _score_text(self, text: str):
-        label, confidence = self.sentiment_classifier.classify(text)
-        score = self.sentiment_classifier.convert_to_sentiment_score(label, confidence)
+        label, confidence = self.legacy_classifier.classify(text)
+        score = self.legacy_classifier.convert_to_sentiment_score(label, confidence)
         return score, label.lower(), confidence
 
     # =====================================================
@@ -91,26 +92,40 @@ class SentimentAndSalesPipeline:
 
         # Only run expensive ML on NEW posts (not yet analyzed)
         if new_posts:
-            for post in new_posts:
-                score, label, _ = self._score_text(post.content)
-                total_score += score
-                if label == "positive":
-                    positive += 1
-                elif label == "negative":
-                    negative += 1
-                else:
-                    neutral += 1
+            # Group by product name for batch LLM analysis
+            from collections import defaultdict
+            product_groups = defaultdict(list)
+            for p in new_posts:
+                product_groups[p.product_name or "Unknown Product"].append(p)
+                
+            for prod_name, p_list in product_groups.items():
+                batch_size = 20
+                for i in range(0, len(p_list), batch_size):
+                    batch = p_list[i:i+batch_size]
+                    texts = [p.content for p in batch]
+                    
+                    results = self.sentiment_classifier.classify_batch(texts, prod_name)
+                    
+                    for post, (label, conf) in zip(batch, results):
+                        score = self.sentiment_classifier.convert_to_sentiment_score(label, conf)
+                        total_score += score
+                        if label == "positive":
+                            positive += 1
+                        elif label == "negative":
+                            negative += 1
+                        else:
+                            neutral += 1
 
-                # Guard against concurrent duplicate inserts
-                existing = db.query(models.SentimentScore).filter(
-                    models.SentimentScore.post_id == post.id
-                ).first()
-                if not existing:
-                    db.add(models.SentimentScore(
-                        post_id=post.id,
-                        sentiment_label=label,
-                        sentiment_score=score,
-                    ))
+                        # Guard against concurrent duplicate inserts
+                        existing = db.query(models.SentimentScore).filter(
+                            models.SentimentScore.post_id == post.id
+                        ).first()
+                        if not existing:
+                            db.add(models.SentimentScore(
+                                post_id=post.id,
+                                sentiment_label=label,
+                                sentiment_score=score,
+                            ))
 
             db.commit()
 

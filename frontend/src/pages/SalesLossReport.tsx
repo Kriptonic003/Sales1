@@ -27,10 +27,9 @@ interface SalesLossData {
 interface SentimentMetrics {
   total_posts: number;
   positive_count: number;
-  negative_count: number;
-  neutral_count: number;
-  average_sentiment: number;
   negative_percentage: number;
+  positives: string[];
+  negatives: string[];
 }
 
 export default function SalesLossReportPage() {
@@ -119,6 +118,8 @@ export default function SalesLossReportPage() {
         neutral_count: 0,
         average_sentiment: sentimentRes.data.average_sentiment,
         negative_percentage: sentimentRes.data.negative_percentage,
+        positives: sentimentRes.data.positives || [],
+        negatives: sentimentRes.data.negatives || [],
       };
       setSalesData(newSalesData);
       setSentimentMetrics(newSentimentMetrics);
@@ -655,6 +656,48 @@ export default function SalesLossReportPage() {
                 Combined impact of all risk factors
               </p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sentiment Summary */}
+      {sentimentMetrics && (sentimentMetrics.positives?.length > 0 || sentimentMetrics.negatives?.length > 0) && (
+        <div className="glass neon-border rounded-2xl p-6 mb-6">
+          <h3 className="mb-4 text-xl font-semibold text-white flex items-center gap-2">
+            <span className="text-2xl">📝</span> Customer Sentiment Summary
+          </h3>
+          <div className="grid gap-6 md:grid-cols-2">
+            
+            {/* Positives */}
+            {sentimentMetrics.positives && sentimentMetrics.positives.length > 0 && (
+              <div className="bg-green-950/20 border border-green-500/20 rounded-xl p-5">
+                <h4 className="text-sm font-semibold text-green-400 uppercase tracking-wider mb-3">Top Positives</h4>
+                <ul className="space-y-3">
+                  {sentimentMetrics.positives.map((factor: string, idx: number) => (
+                    <li key={idx} className="flex items-start gap-3">
+                      <span className="text-green-500 mt-0.5">✓</span>
+                      <span className="text-slate-200">{factor}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Negatives */}
+            {sentimentMetrics.negatives && sentimentMetrics.negatives.length > 0 && (
+              <div className="bg-red-950/20 border border-red-500/20 rounded-xl p-5">
+                <h4 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-3">Top Negatives</h4>
+                <ul className="space-y-3">
+                  {sentimentMetrics.negatives.map((factor: string, idx: number) => (
+                    <li key={idx} className="flex items-start gap-3">
+                      <span className="text-red-500 mt-0.5">✗</span>
+                      <span className="text-slate-200">{factor}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            
           </div>
         </div>
       )}

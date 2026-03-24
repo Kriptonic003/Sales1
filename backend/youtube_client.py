@@ -1,6 +1,8 @@
 import os
 import requests
+from dotenv import load_dotenv
 
+load_dotenv(override=True)
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 
 if not YOUTUBE_API_KEY:
