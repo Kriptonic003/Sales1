@@ -8,13 +8,15 @@ import os
 from dotenv import load_dotenv
 
 # Load ENV first
-load_dotenv()
+load_dotenv(override=True)
 
 # --------------------------------------------------
 # CHECK API KEY
 # --------------------------------------------------
 if not os.getenv("YOUTUBE_API_KEY"):
     raise RuntimeError("YOUTUBE_API_KEY not found in environment variables")
+
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 # --------------------------------------------------
 # IMPORT AFTER ENV LOAD
@@ -101,6 +103,16 @@ def analyze_sentiment(
             negative_percentage=(negative / len(posts) * 100.0) if posts else 0.0,
             total_posts=len(posts),
         )
+    from services.chatbot import generate_sentiment_summary
+    import random
+    
+    pos_posts = [p for p in posts if p.sentiment and p.sentiment.sentiment_label == "positive"]
+    neg_posts = [p for p in posts if p.sentiment and p.sentiment.sentiment_label == "negative"]
+    
+    sample_texts = [p.content for p in pos_posts[:20]] + [p.content for p in neg_posts[:20]]
+    random.shuffle(sample_texts)
+    
+    summary_data = generate_sentiment_summary(request.product_name, sample_texts) if sample_texts else {"positives": [], "negatives": []}
     
     total_time = time.time() - start_time
     print(f"[ANALYZE] Complete in {total_time:.2f}s\n")
@@ -113,6 +125,8 @@ def analyze_sentiment(
         total_posts=summary.total_posts,
         start_date=request.start_date,
         end_date=request.end_date,
+        positives=summary_data.get("positives", []),
+        negatives=summary_data.get("negatives", []),
     )
 
 

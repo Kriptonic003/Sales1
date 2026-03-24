@@ -2,7 +2,9 @@ import os
 import requests
 import re
 from langdetect import detect
+from dotenv import load_dotenv
 
+load_dotenv(override=True)
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 
 SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"

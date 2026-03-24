@@ -81,3 +81,43 @@ def generate_chat_response(message: str, context: dict | None = None) -> str:
             "⚠️ AI service unavailable. "
             "Please check your GROQ_API_KEY in the .env file."
         )
+
+
+def generate_sentiment_summary(product_name: str, comments: list[str]) -> dict:
+    """Extract top positive and negative factors from comments using Groq."""
+    import json
+    from langchain_groq import ChatGroq
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    key = os.getenv("GROQ_API_KEY", "").strip()
+    if not key or not comments:
+        return {"positives": [], "negatives": []}
+
+    system_prompt = f"""You are an insightful product analyst.
+Based on the following user comments about '{product_name}', identify the overall sentiment.
+Provide exactly the top 2-3 positive factors and top 2-3 negative factors.
+Make them short, concise bulletin-style points (e.g. "Excellent battery life", "High price").
+Output STRICTLY in JSON format.
+{{ "positives": ["positive 1"], "negatives": ["negative 1"] }}"""
+
+    sample_comments = comments[:40]
+    user_prompt = "Comments:\n" + "\n".join([f"- {c}" for c in sample_comments])
+
+    try:
+        llm = ChatGroq(model="llama-3.1-8b-instant", groq_api_key=key, temperature=0.2)
+        llm_json = llm.bind(response_format={"type": "json_object"})
+        
+        response = llm_json.invoke([
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_prompt)
+        ])
+        
+        parsed = json.loads(response.content)
+        return {
+            "positives": parsed.get("positives", []),
+            "negatives": parsed.get("negatives", [])
+        }
+    except Exception as e:
+        print(f"Error extracting summary: {e}")
+        return {"positives": [], "negatives": []}
+

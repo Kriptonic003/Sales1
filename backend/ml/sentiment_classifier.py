@@ -3,9 +3,100 @@ DistilBERT-based Sentiment Classification Module
 Uses pre-trained DistilBERT model for high-quality sentiment analysis
 """
 
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List
 import torch
+import os
+import json
 from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
+from langchain_groq import ChatGroq
+from langchain_core.messages import SystemMessage, HumanMessage
+
+
+class TargetedSentimentClassifier:
+    """
+    Uses Groq LLM to classify sentiment specifically towards a product.
+    Resolves false positives where competitors or the video itself are praised.
+    """
+    def __init__(self, model_name: str = "llama-3.1-8b-instant", temperature: float = 0.0):
+        self.model_name = model_name
+        self.temperature = temperature
+        self.api_key = os.getenv("GROQ_API_KEY", "").strip()
+        if not self.api_key:
+            print("WARNING: GROQ_API_KEY not set. Targeted sentiment will fallback to neutral.")
+            
+    def classify_batch(self, texts: List[str], product_name: str) -> List[Tuple[str, float]]:
+        """
+        Classifies a batch of texts towards the specified product.
+        Returns a list of (label, confidence) tuples.
+        """
+        if not texts:
+            return []
+            
+        if not self.api_key:
+            return [("neutral", 0.0) for _ in texts]
+            
+        system_prompt = f"""You are an expert aspect-based sentiment analyzer.
+Your task is to analyze the sentiment of user comments strictly towards the product: '{product_name}'.
+Rules:
+1. Ignore praise or criticism focused on competitors, alternative products, or the video/content creator.
+2. If the comment says a competitor is better, the sentiment towards '{product_name}' is negative (or neutral if they just mention it without comparison).
+3. If the comment is completely unrelated to '{product_name}', mark it as neutral.
+4. Output STRICTLY IN JSON format.
+
+Output format:
+{{
+  "results": [
+    {{"label": "positive"|"negative"|"neutral", "confidence": <float 0.8>}}
+  ]
+}}
+Your output array MUST have exactly {len(texts)} elements, matching the order of input comments."""
+
+        truncated_texts = [str(t)[:500] for t in texts]
+        
+        user_prompt = "Comments to analyze:\n"
+        for i, text in enumerate(truncated_texts):
+            user_prompt += f"{i+1}. {text}\n"
+
+        try:
+            llm = ChatGroq(
+                model=self.model_name, 
+                groq_api_key=self.api_key, 
+                temperature=self.temperature
+            ).bind(response_format={"type": "json_object"})
+            
+            response = llm.invoke([
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_prompt)
+            ])
+            
+            parsed = json.loads(response.content)
+            results = parsed.get("results", [])
+            
+            output = []
+            for i in range(len(texts)):
+                if i < len(results):
+                    lbl = str(results[i].get("label", "neutral")).lower()
+                    if lbl not in ["positive", "negative", "neutral"]:
+                        lbl = "neutral"
+                    try:
+                        conf = float(results[i].get("confidence", 0.8))
+                    except:
+                        conf = 0.8
+                    output.append((lbl, conf))
+                else:
+                    output.append(("neutral", 0.0))
+            return output
+        except Exception as e:
+            print(f"Error in Groq ABSA: {e}")
+            return [("neutral", 0.0) for _ in texts]
+
+    def convert_to_sentiment_score(self, label: str, score: float) -> float:
+        label = label.lower()
+        if label == "positive": return score
+        elif label == "negative": return -score
+        else: return 0.0
+
+
 
 
 class DistilBERTSentimentClassifier:

@@ -20,6 +20,8 @@ class SentimentAnalysisResponse(BaseModel):
     total_posts: int
     start_date: date
     end_date: date
+    positives: List[str] = []
+    negatives: List[str] = []
 
 
 class SalesLossPredictionRequest(BaseModel):
