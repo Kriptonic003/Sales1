@@ -18,6 +18,9 @@ class SentimentAnalysisResponse(BaseModel):
     average_sentiment: float
     negative_percentage: float
     total_posts: int
+    positive_count: int = 0
+    neutral_count: int = 0
+    negative_count: int = 0
     start_date: date
     end_date: date
     positives: List[str] = []
@@ -116,6 +119,14 @@ class SocialPostOut(BaseModel):
             sentiment_label=sentiment_label,
             sentiment_score=sentiment_score,
         )
+
+
+class CommentsResponse(BaseModel):
+    comments: List[SocialPostOut]
+    total_count: int
+    positive_count: int
+    neutral_count: int
+    negative_count: int
 
 
 class ChatRequest(BaseModel):

@@ -1,0 +1,24 @@
+TEXT: This is a great product!
+  H-Script: False, English: True, Hinglish: False -> FILTERED: False
+
+TEXT: मुझे यह बहुत पसंद है
+  H-Script: True, English: False, Hinglish: False -> FILTERED: True
+
+TEXT: Bhai bahut acha hai
+  H-Script: False, English: False, Hinglish: True -> FILTERED: True
+
+TEXT: It works perfectly fine
+  H-Script: False, English: True, Hinglish: False -> FILTERED: False
+
+TEXT: kya baat hai samsung
+  H-Script: False, English: False, Hinglish: True -> FILTERED: True
+
+TEXT: samsung s23 is best
+  H-Script: False, English: False, Hinglish: False -> FILTERED: True
+
+TEXT: bakwaas product yaar
+  H-Script: False, English: False, Hinglish: True -> FILTERED: True
+
+TEXT: very bad experience
+  H-Script: False, English: True, Hinglish: False -> FILTERED: False
+

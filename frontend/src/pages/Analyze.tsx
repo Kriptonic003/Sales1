@@ -20,7 +20,7 @@ export default function AnalyzePage() {
 
   const [loading, setLoading] = useState(false);
   const [processStep, setProcessStep] = useState<
-    'idle' | 'fetching' | 'analyzing' | 'predicting'
+    'idle' | 'fetching' | 'analyzing' | 'predicting' | 'finalizing'
   >('idle');
   const [error, setError] = useState('');
   const [sentiment, setSentiment] = useState<SentimentAnalysisResponse | null>(
@@ -40,27 +40,26 @@ export default function AnalyzePage() {
     setError('');
 
     try {
-      // 🔹 STEP 1: Try to fetch YouTube comments (optional - skip if it fails/times out)
+      // 🔹 STEP 1: Try to fetch YouTube comments
       try {
         await api.post('/fetch-youtube-comments', null, {
           params: {
             product_name: product,
             brand_name: brand,
           },
-          timeout: 60000, // INCREASED to 60s to ensure fetch completes
+          timeout: 120000, // Increased to 120s as we fetch more videos now
         });
       } catch (fetchError) {
         console.warn(
           'YouTube fetch failed or timed out, using existing data:',
           fetchError
         );
-        // Continue anyway - we'll use existing database data
       }
 
       setProcessStep('analyzing');
-      // 🔹 STEP 2: Analyze sentiment (YouTube only)
+      // 🔹 STEP 2: Analyze sentiment
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
 
       try {
         const sentimentResp = await api.post<SentimentAnalysisResponse>(
@@ -92,7 +91,7 @@ export default function AnalyzePage() {
       const predictionTimeoutId = setTimeout(
         () => predictionController.abort(),
         30000
-      ); // 30 second timeout
+      );
 
       try {
         const predictionResp = await api.post<SalesLossPredictionResponse>(
@@ -108,12 +107,6 @@ export default function AnalyzePage() {
         );
         clearTimeout(predictionTimeoutId);
         setPrediction(predictionResp.data);
-
-        // ⚡ Invalidate Dashboard + Report caches so they show the same fresh values
-        localStorage.removeItem('dashboard_cache');
-        localStorage.removeItem('dashboard_cache_ts');
-        localStorage.removeItem('report_sales_cache');
-        localStorage.removeItem('report_sentiment_cache');
       } catch (predictionErr: any) {
         clearTimeout(predictionTimeoutId);
         if (predictionErr.name === 'AbortError') {
@@ -123,6 +116,16 @@ export default function AnalyzePage() {
         }
         throw predictionErr;
       }
+
+      setProcessStep('finalizing');
+      // 🔹 STEP 4: Finalizing Report (Caches & Cleanup)
+      await new Promise(resolve => setTimeout(resolve, 1500)); // Visual delay for the 4th step
+      
+      localStorage.removeItem('dashboard_cache');
+      localStorage.removeItem('dashboard_cache_ts');
+      localStorage.removeItem('report_sales_cache');
+      localStorage.removeItem('report_sentiment_cache');
+
     } catch (err) {
       setError(formatError(err));
     } finally {
@@ -134,52 +137,80 @@ export default function AnalyzePage() {
   return (
     <div className="grid gap-4 md:grid-cols-[1.1fr_0.9fr]">
       {/* INPUT PANEL */}
-      <div className="glass neon-border rounded-2xl p-5">
-        <h2 className="text-2xl font-semibold text-white mb-4">
-          Product Analysis (YouTube · Multi-Video)
-        </h2>
+      <div className="glass neon-border rounded-2xl p-5 flex flex-col gap-4">
+        <div>
+          <h2 className="text-2xl font-semibold text-white mb-4">
+            Product Analysis (YouTube · Multi-Video)
+          </h2>
 
-        <div className="grid gap-3">
-          <input
-            value={product}
-            onChange={e => {
-              setProduct(e.target.value);
-              localStorage.setItem('product_name', e.target.value);
-            }}
-            placeholder="Product name (used as YouTube search)"
-            className="rounded-xl border border-cyan-500/30 bg-slate-950 px-3 py-2 text-white"
-          />
+          <div className="grid gap-3">
+            <input
+              value={product}
+              onChange={e => {
+                setProduct(e.target.value);
+                localStorage.setItem('product_name', e.target.value);
+              }}
+              placeholder="Product name (used as YouTube search)"
+              className="rounded-xl border border-cyan-500/30 bg-slate-950 px-3 py-2 text-white"
+            />
 
-          <input
-            value={brand}
-            onChange={e => {
-              setBrand(e.target.value);
-              localStorage.setItem('brand_name', e.target.value);
-            }}
-            placeholder="Brand name"
-            className="rounded-xl border border-cyan-500/30 bg-slate-950 px-3 py-2 text-white"
-          />
+            <input
+              value={brand}
+              onChange={e => {
+                setBrand(e.target.value);
+                localStorage.setItem('brand_name', e.target.value);
+              }}
+              placeholder="Brand name"
+              className="rounded-xl border border-cyan-500/30 bg-slate-950 px-3 py-2 text-white"
+            />
+          </div>
+
+          <p className="mt-3 text-xs text-slate-400">
+            We automatically analyze comments from multiple top-viewed YouTube
+            videos related to the product.
+          </p>
+
+          <button
+            onClick={submit}
+            disabled={loading}
+            className="btn-primary w-full py-4 mt-4 text-lg font-bold rounded-xl shadow-lg shadow-cyan-500/20"
+          >
+            {loading 
+              ? processStep === 'fetching' ? 'Fetching Comments...'
+              : processStep === 'analyzing' ? 'Analyzing Sentiment...'
+              : processStep === 'predicting' ? 'Predicting Risk...'
+              : processStep === 'finalizing' ? 'Finalizing Report...'
+              : 'Processing...'
+              : 'Run Analysis'}
+          </button>
+
+          {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
         </div>
 
-        <p className="mt-3 text-xs text-slate-400">
-          We automatically analyze comments from multiple top-viewed YouTube
-          videos related to the product.
-        </p>
-
-        <button
-          onClick={submit}
-          disabled={loading}
-          className="btn-primary w-full py-4 text-lg font-bold rounded-xl shadow-lg shadow-cyan-500/20"
-        >
-          {loading 
-            ? processStep === 'fetching' ? 'Fetching Comments...'
-            : processStep === 'analyzing' ? 'Analyzing Sentiment...'
-            : processStep === 'predicting' ? 'Predicting Risk...'
-            : 'Processing...'
-            : 'Run Analysis'}
-        </button>
-
-        {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
+        {/* PROGRESS BOX - MOVED HERE */}
+        {loading && (
+          <div className="bg-slate-900/50 rounded-xl p-5 border border-slate-800 mt-2">
+            <h4 className="text-sm font-semibold text-slate-300 mb-4">Analysis Progress</h4>
+            <div className="space-y-4">
+              <div className={`flex items-center gap-3 transition-colors duration-300 ${processStep === 'fetching' ? 'text-cyan-400' : (['analyzing', 'predicting', 'finalizing'].includes(processStep)) ? 'text-green-400' : 'text-slate-500'}`}>
+                 <div className={`w-3 h-3 rounded-full transition-colors duration-300 ${processStep === 'fetching' ? 'bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(34,211,238,0.8)]' : (['analyzing', 'predicting', 'finalizing'].includes(processStep)) ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)]' : 'bg-slate-700'}`} />
+                 <span className={`text-sm ${processStep === 'fetching' ? 'font-bold' : ''}`}>Fetch YouTube Comments</span>
+              </div>
+              <div className={`flex items-center gap-3 transition-colors duration-300 ${processStep === 'analyzing' ? 'text-cyan-400' : (['predicting', 'finalizing'].includes(processStep)) ? 'text-green-400' : 'text-slate-600'}`}>
+                 <div className={`w-3 h-3 rounded-full transition-colors duration-300 ${processStep === 'analyzing' ? 'bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(34,211,238,0.8)]' : (['predicting', 'finalizing'].includes(processStep)) ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)]' : 'bg-slate-700'}`} />
+                 <span className={`text-sm ${processStep === 'analyzing' ? 'font-bold' : ''}`}>Analyze Sentiment</span>
+              </div>
+              <div className={`flex items-center gap-3 transition-colors duration-300 ${processStep === 'predicting' ? 'text-cyan-400' : processStep === 'finalizing' ? 'text-green-400' : 'text-slate-600'}`}>
+                 <div className={`w-3 h-3 rounded-full transition-colors duration-300 ${processStep === 'predicting' ? 'bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(34,211,238,0.8)]' : processStep === 'finalizing' ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)]' : 'bg-slate-700'}`} />
+                 <span className={`text-sm ${processStep === 'predicting' ? 'font-bold' : ''}`}>Predict Sales Risk</span>
+              </div>
+              <div className={`flex items-center gap-3 transition-colors duration-300 ${processStep === 'finalizing' ? 'text-cyan-400' : 'text-slate-600'}`}>
+                 <div className={`w-3 h-3 rounded-full transition-colors duration-300 ${processStep === 'finalizing' ? 'bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(34,211,238,0.8)]' : 'bg-slate-700'}`} />
+                 <span className={`text-sm ${processStep === 'finalizing' ? 'font-bold' : ''}`}>Generate Final Report</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* RESULTS PANEL */}
@@ -193,28 +224,11 @@ export default function AnalyzePage() {
                  processStep === 'fetching' ? 'Fetching YouTube comments...' :
                  processStep === 'analyzing' ? 'Analyzing sentiment...' :
                  processStep === 'predicting' ? 'Predicting sales risk...' :
+                 processStep === 'finalizing' ? 'Generating report...' :
                  'Processing...'
               } 
               size="md" 
             />
-            
-            <div className="bg-slate-900/50 rounded-xl p-5 border border-slate-800">
-              <h4 className="text-sm font-semibold text-slate-300 mb-4">Analysis Progress</h4>
-              <div className="space-y-4">
-                <div className={`flex items-center gap-3 transition-colors duration-300 ${processStep === 'fetching' ? 'text-cyan-400' : processStep === 'analyzing' || processStep === 'predicting' ? 'text-green-400' : 'text-slate-500'}`}>
-                   <div className={`w-3 h-3 rounded-full transition-colors duration-300 ${processStep === 'fetching' ? 'bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(34,211,238,0.8)]' : processStep === 'analyzing' || processStep === 'predicting' ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)]' : 'bg-slate-700'}`} />
-                   <span className={`text-sm ${processStep === 'fetching' ? 'font-bold' : ''}`}>Fetch YouTube Comments</span>
-                </div>
-                <div className={`flex items-center gap-3 transition-colors duration-300 ${processStep === 'analyzing' ? 'text-cyan-400' : processStep === 'predicting' ? 'text-green-400' : 'text-slate-600'}`}>
-                   <div className={`w-3 h-3 rounded-full transition-colors duration-300 ${processStep === 'analyzing' ? 'bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(34,211,238,0.8)]' : processStep === 'predicting' ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)]' : 'bg-slate-700'}`} />
-                   <span className={`text-sm ${processStep === 'analyzing' ? 'font-bold' : ''}`}>Analyze Sentiment</span>
-                </div>
-                <div className={`flex items-center gap-3 transition-colors duration-300 ${processStep === 'predicting' ? 'text-cyan-400' : 'text-slate-600'}`}>
-                   <div className={`w-3 h-3 rounded-full transition-colors duration-300 ${processStep === 'predicting' ? 'bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(34,211,238,0.8)]' : 'bg-slate-700'}`} />
-                   <span className={`text-sm ${processStep === 'predicting' ? 'font-bold' : ''}`}>Predict Sales Risk</span>
-                </div>
-              </div>
-            </div>
           </div>
         )}
 

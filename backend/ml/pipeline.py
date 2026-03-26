@@ -9,7 +9,7 @@ from sklearn.linear_model import LogisticRegression, LinearRegression
 import models
 import schemas
 import crud
-from ml.sentiment_classifier import TargetedSentimentClassifier, DistilBERTSentimentClassifier
+from ml.sentiment_classifier import TargetedSentimentClassifier, DistilBERTSentimentClassifier, LocalSarcasmDetector
 
 # =====================================================
 # AI RELEVANCE FILTER (LIGHTWEIGHT)
@@ -54,12 +54,19 @@ class SentimentAndSalesPipeline:
     def __init__(self):
         self.sentiment_classifier = TargetedSentimentClassifier()
         self.legacy_classifier = DistilBERTSentimentClassifier()
+        self.sarcasm_detector = LocalSarcasmDetector()
         self.loss_classifier = LogisticRegression()
         self.sales_regressor = LinearRegression()
         self._trained = False
 
     def _score_text(self, text: str):
         label, confidence = self.legacy_classifier.classify(text)
+        
+        # Sarcasm check for positive comments
+        if label.lower() == "positive" and self.sarcasm_detector.is_sarcastic(text):
+            label = "neutral"
+            confidence = 0.0
+            
         score = self.legacy_classifier.convert_to_sentiment_score(label, confidence)
         return score, label.lower(), confidence
 
@@ -92,40 +99,39 @@ class SentimentAndSalesPipeline:
 
         # Only run expensive ML on NEW posts (not yet analyzed)
         if new_posts:
-            # Group by product name for batch LLM analysis
-            from collections import defaultdict
-            product_groups = defaultdict(list)
-            for p in new_posts:
-                product_groups[p.product_name or "Unknown Product"].append(p)
+            # Although the local model handles individual calls fast, we still process in batches
+            # to keep the code structure consistent with future LLM/batch needs
+            for post in new_posts:
+                # 0. User rule: Questions/Inquiries are Neutral
+                if "?" in post.content:
+                    label, conf = "neutral", 0.0
+                else:
+                    # Use the reliable LOCAL model (RoBERTa) for primary sentiment
+                    label, conf = self.legacy_classifier.classify(post.content)
                 
-            for prod_name, p_list in product_groups.items():
-                batch_size = 20
-                for i in range(0, len(p_list), batch_size):
-                    batch = p_list[i:i+batch_size]
-                    texts = [p.content for p in batch]
-                    
-                    results = self.sentiment_classifier.classify_batch(texts, prod_name)
-                    
-                    for post, (label, conf) in zip(batch, results):
-                        score = self.sentiment_classifier.convert_to_sentiment_score(label, conf)
-                        total_score += score
-                        if label == "positive":
-                            positive += 1
-                        elif label == "negative":
-                            negative += 1
-                        else:
-                            neutral += 1
+                # --- LOCAL SARCASM FILTERING ---
+                # Sarcasm often hides negative intent in positive words
+                if label.lower() == "positive" and self.sarcasm_detector.is_sarcastic(post.content):
+                    label = "negative"
+                    conf = 0.8  # Default high confidence for confirmed sarcasm flip
+                # -------------------------------
+                
+                score = self.legacy_classifier.convert_to_sentiment_score(label, conf)
+                total_score += score
+                
+                if label == "positive":
+                    positive += 1
+                elif label == "negative":
+                    negative += 1
+                else:
+                    neutral += 1
 
-                        # Guard against concurrent duplicate inserts
-                        existing = db.query(models.SentimentScore).filter(
-                            models.SentimentScore.post_id == post.id
-                        ).first()
-                        if not existing:
-                            db.add(models.SentimentScore(
-                                post_id=post.id,
-                                sentiment_label=label,
-                                sentiment_score=score,
-                            ))
+                # Save to database
+                db.add(models.SentimentScore(
+                    post_id=post.id,
+                    sentiment_label=label,
+                    sentiment_score=score,
+                ))
 
             db.commit()
 

@@ -39,10 +39,10 @@ def get_or_create_social_posts(
         from services.youtube_service import fetch_comments_from_top_videos
 
         query = f"{req.brand_name} {req.product_name}".strip()
-        # Optimize: Fetch only 1 video in fallback to be fast
+        # Ensure at least 100 comments even in fallback
         comments = fetch_comments_from_top_videos(
             query,
-            max_videos=1, 
+            min_comments=150, 
         )
         if comments:
             save_youtube_comments(

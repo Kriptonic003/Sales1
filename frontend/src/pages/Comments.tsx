@@ -1,11 +1,17 @@
 import { useEffect, useState } from 'react';
 import { api, formatError } from '../api/client';
-import type { SocialPostOut } from '../api/types';
+import type { SocialPostOut, CommentsResponse } from '../api/types';
 import DynamicLoader from '../components/DynamicLoader';
 import AlertBanner from '../components/AlertBanner';
 
 export default function CommentsPage() {
   const [data, setData] = useState<SocialPostOut[]>([]);
+  const [counts, setCounts] = useState({
+    total: 0,
+    positive: 0,
+    neutral: 0,
+    negative: 0
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<
@@ -19,7 +25,7 @@ export default function CommentsPage() {
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
     try {
-      const { data } = await api.get<SocialPostOut[]>('/comments', {
+      const response = await api.get<CommentsResponse>('/comments', {
         params: {
           product_name: localStorage.getItem('product_name') || 'NeoGadget',
           brand_name: localStorage.getItem('brand_name') || 'BlueNova',
@@ -28,7 +34,14 @@ export default function CommentsPage() {
         },
         signal: controller.signal,
       });
-      setData(data);
+      
+      setData(response.data.comments);
+      setCounts({
+        total: response.data.total_count,
+        positive: response.data.positive_count,
+        neutral: response.data.neutral_count,
+        negative: response.data.negative_count
+      });
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         setError(
@@ -63,16 +76,27 @@ export default function CommentsPage() {
 
         {/* SENTIMENT FILTERS */}
         <div className="flex items-center gap-2">
-          {['', 'positive', 'neutral', 'negative'].map(f => (
+          {[
+            { label: 'All', value: '', count: counts.total },
+            { label: 'Positive', value: 'positive', count: counts.positive },
+            { label: 'Neutral', value: 'neutral', count: counts.neutral },
+            { label: 'Negative', value: 'negative', count: counts.negative },
+          ].map(f => (
             <button
-              key={f || 'all'}
-              onClick={() => setFilter(f as any)}
-              className={`rounded-full px-3 py-2 text-xs uppercase tracking-wide ${filter === f
-                  ? 'bg-cyan-500/20 text-cyan-100'
-                  : 'border border-cyan-500/30 text-slate-200'
+              key={f.value || 'all'}
+              onClick={() => setFilter(f.value as any)}
+              className={`rounded-full px-4 py-2 text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${filter === f.value
+                  ? 'bg-cyan-500/20 text-cyan-100 border border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
+                  : 'border border-slate-700/50 text-slate-400 hover:border-cyan-500/30 hover:text-slate-200'
                 }`}
             >
-              {f === '' ? 'All' : f}
+              <span>{f.label}</span>
+              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${filter === f.value
+                  ? 'bg-cyan-500/30 text-cyan-100'
+                  : 'bg-slate-800 text-slate-500'
+                }`}>
+                ({f.count})
+              </span>
             </button>
           ))}
         </div>

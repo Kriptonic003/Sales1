@@ -108,6 +108,7 @@ def analyze_sentiment(
     
     pos_posts = [p for p in posts if p.sentiment and p.sentiment.sentiment_label == "positive"]
     neg_posts = [p for p in posts if p.sentiment and p.sentiment.sentiment_label == "negative"]
+    neu_posts = [p for p in posts if p.sentiment and p.sentiment.sentiment_label == "neutral"]
     
     sample_texts = [p.content for p in pos_posts[:20]] + [p.content for p in neg_posts[:20]]
     random.shuffle(sample_texts)
@@ -123,6 +124,9 @@ def analyze_sentiment(
         average_sentiment=summary.average_sentiment,
         negative_percentage=summary.negative_percentage,
         total_posts=summary.total_posts,
+        positive_count=len(pos_posts),
+        neutral_count=len(neu_posts),
+        negative_count=len(neg_posts),
         start_date=request.start_date,
         end_date=request.end_date,
         positives=summary_data.get("positives", []),
@@ -160,7 +164,7 @@ def get_dashboard_data(
     return result
 
 
-@app.get("/comments", response_model=List[schemas.SocialPostOut])
+@app.get("/comments", response_model=schemas.CommentsResponse)
 def get_comments(
     product_name: str,
     brand_name: str,
@@ -195,7 +199,13 @@ def get_comments(
         else:
             print(f"[COMMENTS] All {len(all_posts)} posts already analyzed")
 
-    # Return comments with sentiment loaded
+    # Get sentiment counts from ALL posts
+    total_count = len(all_posts)
+    pos_count = len([p for p in all_posts if p.sentiment and p.sentiment.sentiment_label == "positive"])
+    neg_count = len([p for p in all_posts if p.sentiment and p.sentiment.sentiment_label == "negative"])
+    neu_count = len([p for p in all_posts if p.sentiment and p.sentiment.sentiment_label == "neutral"])
+
+    # Return comments with sentiment loaded (respecting filter)
     retrieve_start = time.time()
     comments = crud.get_comments(db, product_name, brand_name, platform, sentiment_filter)
     result = [schemas.SocialPostOut.from_orm(c) for c in comments]
@@ -203,7 +213,13 @@ def get_comments(
     total_time = time.time() - start_time
     print(f"[COMMENTS] Returned {len(result)} comments in {total_time:.2f}s total\n")
 
-    return result
+    return schemas.CommentsResponse(
+        comments=result,
+        total_count=total_count,
+        positive_count=pos_count,
+        neutral_count=neu_count,
+        negative_count=neg_count
+    )
 
 @app.post("/chat", response_model=schemas.ChatResponse)
 def chat(request: schemas.ChatRequest):
@@ -218,12 +234,17 @@ def chat(request: schemas.ChatRequest):
 def fetch_youtube_comments_multi_video(
     product_name: str,
     brand_name: str,
-    max_videos: int = 20,
     db: Session = Depends(get_db),
 ):
     # Build a more specific query to avoid unrelated mega-viral results
     query = f"{brand_name} {product_name}".strip()
-    comments = fetch_comments_from_top_videos(query, max_videos=max_videos)
+    # Now passing product and brand for strict relevance filtering
+    comments = fetch_comments_from_top_videos(
+        query=query, 
+        product_name=product_name, 
+        brand_name=brand_name, 
+        min_comments=150
+    )
 
     if not comments:
         raise HTTPException(status_code=404, detail="No comments found")
@@ -246,7 +267,7 @@ def fetch_youtube_comments_multi_video(
 
     return {
         "message": "YouTube comments fetched from multiple top videos",
-        "videos_used": f"Top {max_videos} videos by relevance",
+        "videos_used": "Top 40 videos by relevance",
         "comments_saved": len(saved),
     }
 

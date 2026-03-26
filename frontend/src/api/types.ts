@@ -6,6 +6,9 @@ export interface SentimentAnalysisResponse {
   average_sentiment: number;
   negative_percentage: number;
   total_posts: number;
+  positive_count: number;
+  neutral_count: number;
+  negative_count: number;
   start_date: string;
   end_date: string;
 }
@@ -67,4 +70,12 @@ export interface SocialPostOut {
 
 export interface ChatResponse {
   reply: string;
+}
+
+export interface CommentsResponse {
+  comments: SocialPostOut[];
+  total_count: number;
+  positive_count: number;
+  neutral_count: number;
+  negative_count: number;
 }

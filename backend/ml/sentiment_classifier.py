@@ -99,13 +99,86 @@ Your output array MUST have exactly {len(texts)} elements, matching the order of
 
 
 
+class LocalSarcasmDetector:
+    """
+    Local sarcasm detection using a specialized RoBERTa model.
+    Helps filter out false positives in sentiment analysis.
+    """
+    def __init__(self, device: str | None = None):
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        
+        self.device = device
+        # Using already-cached irony model (Twitter-trained)
+        self.model_name = "cardiffnlp/twitter-roberta-base-irony"
+        
+        self.detector = pipeline(
+            "text-classification",
+            model=self.model_name,
+            device=0 if device == "cuda" else -1
+        )
+        print(f"INFO: Local Sarcasm (Irony) Detector loaded on {device.upper()}")
+
+    def is_sarcastic(self, text: str, threshold: float = 0.80) -> bool:
+        """
+        Returns True if the text is detected as sarcastic (ironic) with confidence above threshold.
+        Includes a 'Contrast Check' safeguard to prevent false positives on genuine extreme praise.
+        """
+        if not text or not text.strip():
+            return False
+            
+        text_lower = text.lower()
+        
+        # 1. Failure Indicators (Words that suggest something went wrong)
+        failure_indicators = [
+            'broke', 'stop', 'fail', 'bad', 'waste', 'worst', 'issue', 'faulty', 
+            'return', 'refund', 'slow', 'disappointing', 'garbage', 'trash',
+            'not working', 'didn\'t work', 'day one', 'week one'
+        ]
+        
+        # 2. Sincerity Markers (Words that suggest genuine extreme satisfaction)
+        sincerity_markers = [
+            'perfectly', 'flawlessly', 'champ', 'best ever', 'must buy', 
+            'highly recommend', 'no issues', 'no complaints', 'love it', 'amazing'
+        ]
+        
+        has_failure = any(word in text_lower for word in failure_indicators)
+        has_sincerity = any(word in text_lower for word in sincerity_markers)
+        
+        try:
+            # Truncate to avoid model limits
+            text_truncated = text[:500]
+            result = self.detector(text_truncated)[0]
+            
+            label = result['label'].upper()
+            score = result['score']
+            
+            # ML detection
+            is_ironic_ml = (label in ['IRONY', 'LABEL_1'] and score >= threshold)
+            
+            # CONTRAST CHECK LOGIC:
+            # - If ML says it's ironic AND we have a failure word -> Sarcasm (True)
+            # - If it has extreme sincerity markers and no failure words -> NOT Sarcasm (False)
+            # - Otherwise, trust the ML only if it has a failure indicator.
+            if is_ironic_ml:
+                if has_sincerity and not has_failure:
+                    return False  # Likely extreme genuine praise
+                return has_failure  # Only flip if there's a reason to believe it's sarcasm
+                
+            return False
+            
+        except Exception as e:
+            print(f"Error in sarcasm detection: {e}")
+            return False
+
+
 class DistilBERTSentimentClassifier:
     """
     Wraps DistilBERT for sentiment classification.
     Classifies text as positive, negative, or neutral.
     """
 
-    def __init__(self, device: str = None, neutral_threshold: float = 0.55):
+    def __init__(self, device: str | None = None, neutral_threshold: float = 0.55):
         """
         Initialize the DistilBERT sentiment classifier.
         
@@ -132,7 +205,7 @@ class DistilBERTSentimentClassifier:
             device=0 if device == "cuda" else -1  # -1 for CPU, 0 for first GPU
         )
         
-        print(f"✓ DistilBERT Sentiment Classifier loaded on {device.upper()}")
+        print(f"INFO: DistilBERT Sentiment Classifier loaded on {device.upper()}")
         print(f"  Neutral threshold: {self.neutral_threshold:.0%} confidence")
         print(f"  Texts with confidence < {self.neutral_threshold:.0%} are classified as NEUTRAL")
 
