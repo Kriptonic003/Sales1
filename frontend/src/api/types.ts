@@ -24,6 +24,8 @@ export interface SalesLossPredictionResponse {
 }
 
 export interface KPISection {
+  product_name: string;
+  brand_name: string;
   average_sentiment: number;
   negative_percentage: number;
   positive_percentage?: number;
@@ -33,6 +35,8 @@ export interface KPISection {
   neutral_count?: number;
   predicted_sales_drop: number;
   risk_level: string;
+  positives: string[];
+  negatives: string[];
 }
 
 export interface SentimentDailyPoint {

@@ -58,6 +58,8 @@ class SalesPoint(BaseModel):
 
 
 class KPISection(BaseModel):
+    product_name: str
+    brand_name: str
     average_sentiment: float
     negative_percentage: float
     positive_percentage: float
@@ -67,6 +69,8 @@ class KPISection(BaseModel):
     neutral_count: int
     predicted_sales_drop: float
     risk_level: str
+    positives: List[str] = []
+    negatives: List[str] = []
 
 
 class DashboardResponse(BaseModel):

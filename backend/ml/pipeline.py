@@ -10,6 +10,7 @@ import models
 import schemas
 import crud
 from ml.sentiment_classifier import TargetedSentimentClassifier, DistilBERTSentimentClassifier, LocalSarcasmDetector
+from services.chatbot import generate_sentiment_summary
 
 # =====================================================
 # AI RELEVANCE FILTER (LIGHTWEIGHT)
@@ -255,6 +256,13 @@ class SentimentAndSalesPipeline:
             "negative": summary.negative_count,
         }
 
+        # Qualitative Summary (Likes/Hates)
+        # Sample up to 100 comments for extraction
+        all_comment_texts = [p.content for p in posts]
+        summary_data = generate_sentiment_summary(product_name, all_comment_texts[:100])
+        pos_highlights = summary_data.get("positives", [])
+        neg_highlights = summary_data.get("negatives", [])
+
         # Build comment_volume and sentiment_trend grouped by date
         date_groups: dict = defaultdict(lambda: {"total": 0, "score_sum": 0.0})
         for post in posts:
@@ -293,6 +301,8 @@ class SentimentAndSalesPipeline:
 
         return schemas.DashboardResponse(
             kpis=schemas.KPISection(
+                product_name=product_name,
+                brand_name=brand_name,
                 average_sentiment=summary.average_sentiment,
                 negative_percentage=summary.negative_percentage,
                 positive_percentage=summary.positive_percentage,
@@ -302,6 +312,8 @@ class SentimentAndSalesPipeline:
                 neutral_count=summary.neutral_count,
                 predicted_sales_drop=predicted_drop,
                 risk_level=risk,
+                positives=pos_highlights,
+                negatives=neg_highlights,
             ),
             sentiment_trend=sentiment_trend,
             sentiment_distribution=sentiment_distribution,

@@ -91,12 +91,6 @@ export default function CommentsPage() {
                 }`}
             >
               <span>{f.label}</span>
-              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${filter === f.value
-                  ? 'bg-cyan-500/30 text-cyan-100'
-                  : 'bg-slate-800 text-slate-500'
-                }`}>
-                ({f.count})
-              </span>
             </button>
           ))}
         </div>

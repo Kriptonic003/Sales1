@@ -53,6 +53,8 @@ export default function ChatPanel({ dashboardData, pageLabel = "Dashboard" }: Pr
     if (!dashboardData?.kpis) return undefined;
     const k = dashboardData.kpis;
     return {
+      "Product Name": k.product_name,
+      "Brand Name": k.brand_name,
       "Average Sentiment Score": k.average_sentiment.toFixed(3),
       "Negative Comments %": `${k.negative_percentage.toFixed(1)}%`,
       "Positive Comments %": `${(k.positive_percentage ?? 0).toFixed(1)}%`,
@@ -62,6 +64,8 @@ export default function ChatPanel({ dashboardData, pageLabel = "Dashboard" }: Pr
       "Neutral Count": k.neutral_count ?? 0,
       "Predicted Sales Drop": `${k.predicted_sales_drop.toFixed(1)}%`,
       "Risk Level": k.risk_level,
+      "Top Positives (Likes)": k.positives.join(", "),
+      "Top Negatives (Hates)": k.negatives.join(", "),
       "Total Comments Analyzed":
         dashboardData.comment_volume?.reduce((s, c) => s + c.total_posts, 0) ?? 0,
     };

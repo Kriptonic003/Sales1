@@ -12,6 +12,8 @@ interface ReportData {
     negativePct: number;
     totalPosts: number;
     avgSentiment: number;
+    positives: string[];
+    negatives: string[];
 }
 
 // ── Colour palette (white background edition) ───────────────────
@@ -218,8 +220,61 @@ export async function exportReportPDF(
         cy += 19;
     }
 
-    // Section: Priority Actions
-    cy += 4;
+    // Section: Customer Sentiment Summary
+    if (data.positives.length > 0 || data.negatives.length > 0) {
+        cy += 4;
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(15);
+        pdf.setTextColor(...TEXT_DARK);
+        pdf.text("Sentiment Analysis Highlights", M, cy);
+        pdf.setFillColor(...BRAND_CYAN);
+        pdf.rect(M, cy + 2.5, 55, 1.2, "F");
+        cy += 10;
+
+        const boxW = (W - M * 2 - 6) / 2;
+        let maxH = 0;
+
+        // Pros Box
+        if (data.positives.length > 0) {
+            pdf.setFillColor(240, 253, 244); // bg-green-50
+            pdf.roundedRect(M, cy, boxW, 40, 2, 2, "F");
+            pdf.setFont("helvetica", "bold");
+            pdf.setFontSize(9);
+            pdf.setTextColor(21, 128, 61); // text-green-700
+            pdf.text("TOP POSITIVES", M + 4, cy + 6);
+            
+            pdf.setFont("helvetica", "normal");
+            pdf.setFontSize(8);
+            pdf.setTextColor(...TEXT_MID);
+            let py = cy + 12;
+            for (const p of data.positives.slice(0, 5)) {
+                pdf.text(`\u2022 ${p}`, M + 4, py);
+                py += 5;
+            }
+            maxH = Math.max(maxH, 40);
+        }
+
+        // Cons Box
+        if (data.negatives.length > 0) {
+            pdf.setFillColor(254, 242, 242); // bg-red-50
+            pdf.roundedRect(M + boxW + 6, cy, boxW, 40, 2, 2, "F");
+            pdf.setFont("helvetica", "bold");
+            pdf.setFontSize(9);
+            pdf.setTextColor(185, 28, 28); // text-red-700
+            pdf.text("TOP NEGATIVES", M + boxW + 10, cy + 6);
+            
+            pdf.setFont("helvetica", "normal");
+            pdf.setFontSize(8);
+            pdf.setTextColor(...TEXT_MID);
+            let ny = cy + 12;
+            for (const n of data.negatives.slice(0, 5)) {
+                pdf.text(`\u2022 ${n}`, M + boxW + 10, ny);
+                ny += 5;
+            }
+            maxH = Math.max(maxH, 40);
+        }
+        cy += maxH + 10;
+    }
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(15);
     pdf.setTextColor(...TEXT_DARK);

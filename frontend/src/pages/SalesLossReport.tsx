@@ -28,6 +28,7 @@ interface SentimentMetrics {
   total_posts: number;
   positive_count: number;
   negative_percentage: number;
+  average_sentiment: number;
   positives: string[];
   negatives: string[];
 }
@@ -68,6 +69,8 @@ export default function SalesLossReportPage() {
           negativePct: sentimentMetrics.negative_percentage,
           totalPosts: sentimentMetrics.total_posts,
           avgSentiment: sentimentMetrics.average_sentiment,
+          positives: sentimentMetrics.positives,
+          negatives: sentimentMetrics.negatives,
         },
         'report-charts-container'
       );
